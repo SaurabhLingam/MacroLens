@@ -1,0 +1,453 @@
+/**
+ * foodData.js
+ * Structured food database for NutriTrack.
+ * Each entry follows the schema:
+ *   id        – unique stable key (used as React key + dedup)
+ *   name      – display name
+ *   calories  – kcal per 1 standard serving
+ *   protein   – grams
+ *   carbs     – grams
+ *   fats      – grams
+ *   serving   – human-readable serving size
+ *   category  – "breakfast" | "lunch" | "dinner" | "snack"
+ *
+ * To extend: append new objects following the same schema.
+ * Categories map directly to the meal-type tabs in AddDiet.
+ */
+
+export const FOOD_DATA = [
+  // ── BREAKFAST ──────────────────────────────
+  {
+    id: "bf_001",
+    name: "Oatmeal",
+    calories: 154,
+    protein: 5.3,
+    carbs: 27.4,
+    fats: 2.6,
+    serving: "1 cup cooked",
+    category: "breakfast",
+  },
+  {
+    id: "bf_002",
+    name: "Boiled Eggs (2)",
+    calories: 155,
+    protein: 12.6,
+    carbs: 1.1,
+    fats: 10.6,
+    serving: "2 large eggs",
+    category: "breakfast",
+  },
+  {
+    id: "bf_003",
+    name: "Whole Wheat Toast",
+    calories: 128,
+    protein: 4.8,
+    carbs: 24.0,
+    fats: 1.6,
+    serving: "2 slices",
+    category: "breakfast",
+  },
+  {
+    id: "bf_004",
+    name: "Greek Yogurt",
+    calories: 100,
+    protein: 17.0,
+    carbs: 6.0,
+    fats: 0.7,
+    serving: "170g plain",
+    category: "breakfast",
+  },
+  {
+    id: "bf_005",
+    name: "Banana",
+    calories: 105,
+    protein: 1.3,
+    carbs: 27.0,
+    fats: 0.4,
+    serving: "1 medium",
+    category: "breakfast",
+  },
+  {
+    id: "bf_006",
+    name: "Scrambled Eggs",
+    calories: 182,
+    protein: 13.0,
+    carbs: 1.6,
+    fats: 13.7,
+    serving: "2 eggs with milk",
+    category: "breakfast",
+  },
+  {
+    id: "bf_007",
+    name: "Whole Milk",
+    calories: 149,
+    protein: 8.0,
+    carbs: 11.7,
+    fats: 8.0,
+    serving: "240ml",
+    category: "breakfast",
+  },
+  {
+    id: "bf_008",
+    name: "Avocado Toast",
+    calories: 240,
+    protein: 6.0,
+    carbs: 24.0,
+    fats: 14.0,
+    serving: "1 slice with ½ avocado",
+    category: "breakfast",
+  },
+  {
+    id: "bf_009",
+    name: "Pancakes (2)",
+    calories: 230,
+    protein: 6.0,
+    carbs: 38.0,
+    fats: 6.0,
+    serving: "2 medium pancakes",
+    category: "breakfast",
+  },
+  {
+    id: "bf_010",
+    name: "Orange Juice",
+    calories: 112,
+    protein: 1.7,
+    carbs: 25.8,
+    fats: 0.5,
+    serving: "240ml",
+    category: "breakfast",
+  },
+
+  // ── LUNCH ──────────────────────────────────
+  {
+    id: "ln_001",
+    name: "Grilled Chicken Breast",
+    calories: 231,
+    protein: 43.4,
+    carbs: 0.0,
+    fats: 5.0,
+    serving: "150g",
+    category: "lunch",
+  },
+  {
+    id: "ln_002",
+    name: "Brown Rice",
+    calories: 216,
+    protein: 5.0,
+    carbs: 44.8,
+    fats: 1.8,
+    serving: "1 cup cooked",
+    category: "lunch",
+  },
+  {
+    id: "ln_003",
+    name: "Caesar Salad",
+    calories: 190,
+    protein: 4.0,
+    carbs: 8.0,
+    fats: 16.0,
+    serving: "1 serving (no croutons)",
+    category: "lunch",
+  },
+  {
+    id: "ln_004",
+    name: "Tuna Sandwich",
+    calories: 310,
+    protein: 26.0,
+    carbs: 30.0,
+    fats: 8.0,
+    serving: "1 sandwich",
+    category: "lunch",
+  },
+  {
+    id: "ln_005",
+    name: "Lentil Soup",
+    calories: 230,
+    protein: 18.0,
+    carbs: 40.0,
+    fats: 0.8,
+    serving: "1 bowl (300ml)",
+    category: "lunch",
+  },
+  {
+    id: "ln_006",
+    name: "Whole Wheat Wrap",
+    calories: 210,
+    protein: 7.0,
+    carbs: 36.0,
+    fats: 4.5,
+    serving: "1 wrap",
+    category: "lunch",
+  },
+  {
+    id: "ln_007",
+    name: "Paneer Tikka",
+    calories: 280,
+    protein: 18.0,
+    carbs: 6.0,
+    fats: 20.0,
+    serving: "150g",
+    category: "lunch",
+  },
+  {
+    id: "ln_008",
+    name: "Dal (Lentils)",
+    calories: 175,
+    protein: 12.0,
+    carbs: 30.0,
+    fats: 0.8,
+    serving: "1 cup cooked",
+    category: "lunch",
+  },
+  {
+    id: "ln_009",
+    name: "Mixed Vegetable Salad",
+    calories: 80,
+    protein: 3.0,
+    carbs: 14.0,
+    fats: 1.5,
+    serving: "1 bowl",
+    category: "lunch",
+  },
+  {
+    id: "ln_010",
+    name: "Chapati (2)",
+    calories: 212,
+    protein: 6.4,
+    carbs: 42.0,
+    fats: 2.4,
+    serving: "2 medium",
+    category: "lunch",
+  },
+
+  // ── SNACKS ─────────────────────────────────
+  {
+    id: "sn_001",
+    name: "Apple",
+    calories: 95,
+    protein: 0.5,
+    carbs: 25.1,
+    fats: 0.3,
+    serving: "1 medium",
+    category: "snack",
+  },
+  {
+    id: "sn_002",
+    name: "Mixed Nuts (Handful)",
+    calories: 173,
+    protein: 5.0,
+    carbs: 6.0,
+    fats: 16.0,
+    serving: "30g",
+    category: "snack",
+  },
+  {
+    id: "sn_003",
+    name: "Protein Bar",
+    calories: 210,
+    protein: 20.0,
+    carbs: 22.0,
+    fats: 7.0,
+    serving: "1 bar (60g)",
+    category: "snack",
+  },
+  {
+    id: "sn_004",
+    name: "Hummus & Carrots",
+    calories: 145,
+    protein: 5.0,
+    carbs: 18.0,
+    fats: 6.0,
+    serving: "4 tbsp hummus + 100g carrots",
+    category: "snack",
+  },
+  {
+    id: "sn_005",
+    name: "Cottage Cheese",
+    calories: 110,
+    protein: 14.0,
+    carbs: 4.0,
+    fats: 4.3,
+    serving: "½ cup (113g)",
+    category: "snack",
+  },
+  {
+    id: "sn_006",
+    name: "Dark Chocolate",
+    calories: 170,
+    protein: 2.2,
+    carbs: 13.0,
+    fats: 12.0,
+    serving: "30g (3 squares)",
+    category: "snack",
+  },
+  {
+    id: "sn_007",
+    name: "Orange",
+    calories: 62,
+    protein: 1.2,
+    carbs: 15.4,
+    fats: 0.2,
+    serving: "1 medium",
+    category: "snack",
+  },
+  {
+    id: "sn_008",
+    name: "Rice Cakes (2)",
+    calories: 70,
+    protein: 1.4,
+    carbs: 15.0,
+    fats: 0.6,
+    serving: "2 cakes",
+    category: "snack",
+  },
+  {
+    id: "sn_009",
+    name: "Whey Protein Shake",
+    calories: 130,
+    protein: 25.0,
+    carbs: 5.0,
+    fats: 2.0,
+    serving: "1 scoop in water",
+    category: "snack",
+  },
+  {
+    id: "sn_010",
+    name: "Banana with Peanut Butter",
+    calories: 290,
+    protein: 8.0,
+    carbs: 38.0,
+    fats: 14.0,
+    serving: "1 banana + 2 tbsp PB",
+    category: "snack",
+  },
+
+  // ── DINNER ─────────────────────────────────
+  {
+    id: "dn_001",
+    name: "Grilled Salmon",
+    calories: 280,
+    protein: 39.0,
+    carbs: 0.0,
+    fats: 13.0,
+    serving: "150g fillet",
+    category: "dinner",
+  },
+  {
+    id: "dn_002",
+    name: "Chicken Curry",
+    calories: 320,
+    protein: 28.0,
+    carbs: 14.0,
+    fats: 16.0,
+    serving: "1 bowl (250g)",
+    category: "dinner",
+  },
+  {
+    id: "dn_003",
+    name: "Quinoa",
+    calories: 222,
+    protein: 8.1,
+    carbs: 39.4,
+    fats: 3.5,
+    serving: "1 cup cooked",
+    category: "dinner",
+  },
+  {
+    id: "dn_004",
+    name: "Stir-Fry Vegetables",
+    calories: 120,
+    protein: 4.0,
+    carbs: 18.0,
+    fats: 4.5,
+    serving: "1 cup",
+    category: "dinner",
+  },
+  {
+    id: "dn_005",
+    name: "Pasta (Whole Wheat)",
+    calories: 174,
+    protein: 7.5,
+    carbs: 37.2,
+    fats: 0.8,
+    serving: "1 cup cooked",
+    category: "dinner",
+  },
+  {
+    id: "dn_006",
+    name: "Beef Steak",
+    calories: 271,
+    protein: 26.0,
+    carbs: 0.0,
+    fats: 18.0,
+    serving: "100g lean",
+    category: "dinner",
+  },
+  {
+    id: "dn_007",
+    name: "Egg Fried Rice",
+    calories: 350,
+    protein: 10.0,
+    carbs: 58.0,
+    fats: 9.0,
+    serving: "1 bowl (250g)",
+    category: "dinner",
+  },
+  {
+    id: "dn_008",
+    name: "Tofu Stir-Fry",
+    calories: 180,
+    protein: 16.0,
+    carbs: 8.0,
+    fats: 10.0,
+    serving: "150g tofu + veggies",
+    category: "dinner",
+  },
+  {
+    id: "dn_009",
+    name: "Tomato Soup",
+    calories: 90,
+    protein: 2.2,
+    carbs: 16.0,
+    fats: 2.3,
+    serving: "1 bowl (300ml)",
+    category: "dinner",
+  },
+  {
+    id: "dn_010",
+    name: "Vegetable Biryani",
+    calories: 310,
+    protein: 7.0,
+    carbs: 60.0,
+    fats: 6.0,
+    serving: "1 plate (300g)",
+    category: "dinner",
+  },
+];
+
+/**
+ * Returns all food items for a given category.
+ * @param {"breakfast"|"lunch"|"dinner"|"snack"|"all"} category
+ */
+export const getFoodsByCategory = (category) => {
+  if (!category || category === "all") return FOOD_DATA;
+  return FOOD_DATA.filter((f) => f.category === category);
+};
+
+/**
+ * Searches food items by name (case-insensitive substring match).
+ * @param {string} query
+ */
+export const searchFoods = (query) => {
+  if (!query?.trim()) return FOOD_DATA;
+  const q = query.trim().toLowerCase();
+  return FOOD_DATA.filter((f) => f.name.toLowerCase().includes(q));
+};
+
+/** Maps meal types (from navigation params) to food categories */
+export const MEAL_TO_CATEGORY = {
+  Breakfast: "breakfast",
+  Lunch: "lunch",
+  Snacks: "snack",
+  Dinner: "dinner",
+};
