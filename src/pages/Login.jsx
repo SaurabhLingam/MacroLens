@@ -189,7 +189,7 @@ const Login = () => {
               <Ionicons name="nutrition" size={36} color="#16aa16" />
             </View>
             <Text weight="800" style={styles.brandName}>
-              NutriTrack
+              MacroLense
             </Text>
             <Text style={styles.brandTagline}>
               Your personal nutrition companion

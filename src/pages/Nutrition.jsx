@@ -255,11 +255,11 @@ const NutritionHomeRN = () => {
     const t = new Date();
     return `nutritionLog_${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
   };
-  let hasLoggedStorage = false;
+  const hasLoggedStorage = useRef(false); // ✅ correct
 
   useEffect(() => {
-    if (hasLoggedStorage) return;
-    hasLoggedStorage = true;
+    if (hasLoggedStorage.current) return;
+    hasLoggedStorage.current = true;
 
     (async () => {
       try {
@@ -272,6 +272,9 @@ const NutritionHomeRN = () => {
           console.log(`${key}:`, value);
         });
 
+        // await AsyncStorage.clear();
+        // console.log("🧹 AsyncStorage CLEARED");
+
         const remainingKeys = await AsyncStorage.getAllKeys();
 
         if (remainingKeys.length === 0) {
@@ -280,7 +283,7 @@ const NutritionHomeRN = () => {
           console.log("⚠️ Remaining keys:", remainingKeys);
         }
       } catch (error) {
-        console.error("Error:", error);
+        console.error("❌ Error:", error);
       }
     })();
   }, []);

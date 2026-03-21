@@ -192,7 +192,7 @@ const CalorieGoalRN = () => {
               cy={CENTER}
               r={RADIUS}
               stroke={C.border}
-              strokeWidth={20}
+              strokeWidth={30}
               fill="none"
             />
 
@@ -224,7 +224,7 @@ const CalorieGoalRN = () => {
             <Path
               d={arcPath}
               stroke={C.primaryLight}
-              strokeWidth={16}
+              strokeWidth={23}
               strokeLinecap="round"
               fill="none"
             />
@@ -242,7 +242,7 @@ const CalorieGoalRN = () => {
               x={startPos.x}
               y={startPos.y + 5}
               textAnchor="middle"
-              fontSize={12}
+              fontSize={15}
             >
               🔥
             </SvgText>
@@ -444,8 +444,8 @@ const s = StyleSheet.create({
   // Dial card
   dialCard: {
     alignSelf: "center",
-    width: DIAL_SIZE + 40,
-    height: DIAL_SIZE + 40,
+    width: DIAL_SIZE,
+    height: DIAL_SIZE,
     borderRadius: (DIAL_SIZE + 40) / 2,
     backgroundColor: C.surface,
     marginTop: -(DIAL_SIZE * 0.55),

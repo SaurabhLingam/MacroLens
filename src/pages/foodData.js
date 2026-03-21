@@ -1,6 +1,6 @@
 /**
  * foodData.js
- * Structured food database for NutriTrack.
+ * Structured food database for MacroLense.
  * Each entry follows the schema:
  *   id        – unique stable key (used as React key + dedup)
  *   name      – display name
