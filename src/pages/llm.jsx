@@ -1,3 +1,4 @@
+import { toNumber } from "../utils";
 const GROQ_API_URL =
   process.env.EXPO_PUBLIC_GROQ_API_URL ||
   process.env.EXPO_PUBLIC_GROK_API_URL ||
@@ -52,10 +53,7 @@ const SCAN_OUTPUT_SCHEMA = {
   required: ["items", "totals"],
 };
 
-const toNumber = (value, fallback = 0) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
+
 
 const normalizeItem = (item, index) => ({
   id: item?.id || `scan_item_${Date.now()}_${index}`,

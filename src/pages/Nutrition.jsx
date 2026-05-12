@@ -29,6 +29,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Text } from "../components/TextWrapper";
+import { C } from "../theme";
+import { getTodayKey, STORAGE_KEYS } from "../utils";
 
 import NutritionSetGoalSVG from "../../assets/NutritionSetGoal.svg";
 import WellnessNutrition from "../../assets/WellnessNutrition.svg";
@@ -50,30 +52,7 @@ const isSmall = width < 380;
 // ─────────────────────────────────────────────
 // DESIGN TOKENS
 // ─────────────────────────────────────────────
-const C = {
-  bg: "#F2F6F3",
-  surface: "#FFFFFF",
-  surfaceAlt: "#F8FBF9",
-  border: "#E4EDE7",
-  primary: "#0A7A3E",
-  primaryMid: "#14A855",
-  primaryLight: "#1DB954",
-  primaryDark: "#064D27",
-  primaryGhost: "#E8F5EE",
-  text: "#0D1F16",
-  textSub: "#3D5C47",
-  textMuted: "#7EA98A",
-  blue: "#2563EB",
-  blueLight: "#EFF6FF",
-  orange: "#EA580C",
-  orangeLight: "#FFF4EE",
-  emerald: "#059669",
-  emeraldLight: "#ECFDF5",
-  amber: "#D97706",
-  amberLight: "#FFFBEB",
-  purple: "#9333EA",
-  purpleLight: "#FAF5FF",
-};
+
 
 const MEAL_META = [
   {
@@ -221,6 +200,7 @@ const NutritionHomeRN = () => {
   const [totalCarbs, setTotalCarbs] = useState(0);
   const [totalFat, setTotalFat] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
+  const [macroTargets, setMacroTargets] = useState({ protein: 120, carbs: 200, fat: 70 });
 
   // Hero fade/slide
   const heroOpacity = useRef(new Animated.Value(0)).current;
@@ -251,43 +231,6 @@ const NutritionHomeRN = () => {
   const caloriesLeft = Math.max(goalCalories - intakeCalories, 0);
   const progressPct = Math.round(consumed * 100);
 
-  const getTodayKey = () => {
-    const t = new Date();
-    return `nutritionLog_${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-  };
-  const hasLoggedStorage = useRef(false); // ✅ correct
-
-  useEffect(() => {
-    if (hasLoggedStorage.current) return;
-    hasLoggedStorage.current = true;
-
-    (async () => {
-      try {
-        const keys = await AsyncStorage.getAllKeys();
-        const data = await AsyncStorage.multiGet(keys);
-
-        console.log("📦 AsyncStorage Data:");
-
-        data.forEach(([key, value]) => {
-          console.log(`${key}:`, value);
-        });
-
-        // await AsyncStorage.clear();
-        // console.log("🧹 AsyncStorage CLEARED");
-
-        const remainingKeys = await AsyncStorage.getAllKeys();
-
-        if (remainingKeys.length === 0) {
-          console.log("✅ AsyncStorage is now EMPTY");
-        } else {
-          console.log("⚠️ Remaining keys:", remainingKeys);
-        }
-      } catch (error) {
-        console.error("❌ Error:", error);
-      }
-    })();
-  }, []);
-
   useFocusEffect(
     useCallback(() => {
       const loadData = async () => {
@@ -305,18 +248,25 @@ const NutritionHomeRN = () => {
             setTotalCarbs(0);
             setTotalFat(0);
           }
-          const goalRaw = await AsyncStorage.getItem("calorieGoalData");
+          const goalRaw = await AsyncStorage.getItem(STORAGE_KEYS.CALORIE_GOAL);
           if (goalRaw) {
             const p = JSON.parse(goalRaw);
             setGoalData(p);
             setGoalCalories(p.calorieGoal || 0);
+            setMacroTargets({
+              protein: p.protein_g || 120,
+              carbs: p.carbs_g || 200,
+              fat: p.fat_g || 70,
+            });
           } else {
             setGoalData(null);
             setGoalCalories(0);
           }
-          const userRaw = await AsyncStorage.getItem("nutritionCurrentUser");
+          const userRaw = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_USER);
           if (userRaw) setCurrentUser(JSON.parse(userRaw));
-        } catch {}
+        } catch (e) {
+          console.warn("Nutrition load failed:", e);
+        }
       };
       loadData();
     }, []),
@@ -325,9 +275,8 @@ const NutritionHomeRN = () => {
   const isGoalSet = !!goalData;
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem("nutritionOnboardingComplete");
-    await AsyncStorage.removeItem("nutritionCurrentUser");
-    navigation.reset({ index: 0, routes: [{ name: "NutritionLogin" }] });
+    await AsyncStorage.removeItem(STORAGE_KEYS.ONBOARDING_DONE);
+    navigation.reset({ index: 0, routes: [{ name: "NutritionSetGoal" }] });
   };
 
   const today = new Date().toLocaleDateString("en-US", {
@@ -614,21 +563,21 @@ const NutritionHomeRN = () => {
               <MacroBar
                 label="Protein"
                 current={totalProtein}
-                max={120}
+                max={macroTargets.protein}
                 color={C.blue}
                 lightBg={C.blueLight}
               />
               <MacroBar
                 label="Carbs"
                 current={totalCarbs}
-                max={200}
+                max={macroTargets.carbs}
                 color={C.emerald}
                 lightBg={C.emeraldLight}
               />
               <MacroBar
                 label="Fats"
                 current={totalFat}
-                max={70}
+                max={macroTargets.fat}
                 color={C.orange}
                 lightBg={C.orangeLight}
               />

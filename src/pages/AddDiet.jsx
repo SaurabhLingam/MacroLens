@@ -23,6 +23,7 @@ import {
   Platform,
   Dimensions,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -36,31 +37,14 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { Text } from "../components/TextWrapper";
 import MealInfo from "./MealInfo";
 import { FOOD_DATA, MEAL_TO_CATEGORY } from "./foodData";
+import { searchFoodsAsync } from "./foodService";
+import { C } from "../theme";
+import { DEFAULT_MEALS, MEAL_TYPES, MAX_RECENT_FOODS, normalizeMealType, toNumber, parseJsonSafe, getTodayKey, STORAGE_KEYS, createEmptyLog, ensureMealsShape } from "../utils";
 
 const { width } = Dimensions.get("window");
 const isSmall = width < 380;
 
-// ── Design tokens ──────────────────────────────
-const C = {
-  bg: "#F4F7F5",
-  surface: "#FFFFFF",
-  border: "#E8EEE9",
-  primary: "#0A7A3E",
-  primaryMid: "#14A855",
-  primaryLight: "#16aa16",
-  primaryDark: "#064D27",
-  primaryGhost: "#E8F5EE",
-  text: "#0D1F16",
-  textSub: "#4B6B57",
-  textMuted: "#8CA898",
-  blue: "#2563EB",
-  blueLight: "#EFF6FF",
-  orange: "#EA580C",
-  orangeLight: "#FFF4EE",
-  emerald: "#059669",
-  emeraldLight: "#ECFDF5",
-  danger: "#E53935",
-};
+
 
 const MEAL_COLOR = {
   Breakfast: "#D97706",
@@ -79,49 +63,17 @@ const CATEGORY_TABS = [
 ];
 
 // ── Constants ─────────────────────────────────
-const DEFAULT_MEALS = { Breakfast: [], Lunch: [], Snacks: [], Dinner: [] };
-const VALID_MEAL_TYPES = Object.keys(DEFAULT_MEALS);
-const RECENT_FOODS_KEY = "recentFoods";
-const MAX_RECENT_FOODS = 20;
 
-const normalizeMealType = (v) => (VALID_MEAL_TYPES.includes(v) ? v : "Snacks");
 
-const toNumber = (v, fb = 0) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fb;
-};
 
-const parseJsonSafe = (raw, fb) => {
-  try {
-    return JSON.parse(raw) ?? fb;
-  } catch {
-    return fb;
-  }
-};
 
-const createEmptyLog = (key) => ({
-  date: key.replace("nutritionLog_", ""),
-  totalCalories: 0,
-  totalProtein: 0,
-  totalCarbs: 0,
-  totalFat: 0,
-  meals: { ...DEFAULT_MEALS },
-});
 
-const ensureMealsShape = (log) => {
-  if (!log.meals || typeof log.meals !== "object") {
-    log.meals = { ...DEFAULT_MEALS };
-    return;
-  }
-  const legacy = Array.isArray(log.meals.Meal) ? log.meals.Meal : [];
-  VALID_MEAL_TYPES.forEach((m) => {
-    if (!Array.isArray(log.meals[m])) log.meals[m] = [];
-  });
-  if (legacy.length > 0) {
-    log.meals.Snacks = [...legacy, ...log.meals.Snacks];
-    delete log.meals.Meal;
-  }
-};
+
+
+
+
+
+
 
 // ─────────────────────────────────────────────
 // SHARED PRIMITIVES
@@ -301,13 +253,10 @@ const AddDietRN = () => {
   };
 
   // ── Helpers ──────────────────────────────────
-  const getTodayKey = () => {
-    const t = new Date();
-    return `nutritionLog_${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-  };
+
 
   const saveRecentFood = async (food, quantity = 1) => {
-    const raw = await AsyncStorage.getItem(RECENT_FOODS_KEY);
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_FOODS);
     const arr = Array.isArray(parseJsonSafe(raw, []))
       ? parseJsonSafe(raw, [])
       : [];
@@ -337,7 +286,7 @@ const AddDietRN = () => {
             .toLowerCase() !== key,
       ),
     ].slice(0, MAX_RECENT_FOODS);
-    await AsyncStorage.setItem(RECENT_FOODS_KEY, JSON.stringify(next));
+    await AsyncStorage.setItem(STORAGE_KEYS.RECENT_FOODS, JSON.stringify(next));
     setRecentFoods(next);
   };
 
@@ -352,7 +301,7 @@ const AddDietRN = () => {
           ensureMealsShape(ex);
           if (ex.meals?.[mealType]) setMealTray(ex.meals[mealType]);
         }
-        const rr = await AsyncStorage.getItem(RECENT_FOODS_KEY);
+        const rr = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_FOODS);
         if (rr) {
           const pr = parseJsonSafe(rr, []);
           setRecentFoods(Array.isArray(pr) ? pr : []);
@@ -400,28 +349,54 @@ const AddDietRN = () => {
   const handleRemoveFromTray = async (i) =>
     updateMealTray(mealTray.filter((_, idx) => idx !== i));
 
-  // ── Unified search across recent + catalogue ──
+  // ── Unified search across recent + local food databases ──
   const isSearching = searchQuery.trim().length > 0;
 
-  const searchResults = useMemo(() => {
-    if (!isSearching) return [];
-    const q = searchQuery.trim().toLowerCase();
-    const fromRecent = recentFoods
-      .filter((f) => f.name.toLowerCase().includes(q))
-      .map((f) => ({ ...f, _source: "recent" }));
-    const recentNames = new Set(fromRecent.map((f) => f.name.toLowerCase()));
-    const fromCatalogue = FOOD_DATA.filter(
-      (f) =>
-        f.name.toLowerCase().includes(q) &&
-        !recentNames.has(f.name.toLowerCase()),
-    ).map((f) => ({
-      ...f,
-      fat: f.fats,
-      totalCalories: f.calories,
-      servings: 1,
-      _source: "catalogue",
-    }));
-    return [...fromRecent, ...fromCatalogue];
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+
+    // 300 ms debounce
+    const timer = setTimeout(async () => {
+      try {
+        const apiResults = await searchFoodsAsync(q);
+
+        // Prepend recent foods (they always win, deduplicated by name)
+        const ql = q.toLowerCase();
+        const fromRecent = recentFoods
+          .filter((f) => f.name.toLowerCase().includes(ql))
+          .map((f) => ({ ...f, _source: "recent" }));
+        const recentNames = new Set(fromRecent.map((f) => f.name.toLowerCase()));
+
+        // Normalise fats→fat for downstream MealInfo compatibility
+        const fromApi = apiResults
+          .filter((f) => !recentNames.has(f.name.toLowerCase()))
+          .map((f) => ({
+            ...f,
+            fat: f.fats ?? f.fat ?? 0,
+            totalCalories: f.calories,
+            servings: 1,
+          }));
+
+        setSearchResults([...fromRecent, ...fromApi]);
+      } catch (err) {
+        console.error("[AddDiet] search error:", err);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, [searchQuery, recentFoods]);
 
   // ── Catalogue filtered by active tab ──────────
@@ -633,9 +608,17 @@ const AddDietRN = () => {
           <Animated.View style={[s.section, { opacity: fadeAnim }]}>
             <SectionHeader
               title={`Results for "${searchQuery}"`}
-              subtitle={`${searchResults.length} item${searchResults.length !== 1 ? "s" : ""} found`}
+              subtitle={
+                searchLoading
+                  ? "Searching..."
+                  : `${searchResults.length} item${searchResults.length !== 1 ? "s" : ""} found`
+              }
             />
-            {searchResults.length > 0 ? (
+            {searchLoading ? (
+              <View style={s.searchLoadingWrap}>
+                <ActivityIndicator size="small" color={C.primary} />
+              </View>
+            ) : searchResults.length > 0 ? (
               <View style={s.catalogueList}>
                 {searchResults.map((food, i) => (
                   <CatalogueCard
@@ -934,6 +917,11 @@ const s = StyleSheet.create({
     backgroundColor: C.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  searchLoadingWrap: {
+    alignItems: "center",
+    paddingVertical: 24,
   },
 
   // Empty hint

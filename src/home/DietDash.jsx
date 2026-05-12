@@ -21,6 +21,8 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { Text } from "../components/TextWrapper";
+import { C } from "../theme";
+import { DEFAULT_MEALS, getTodayKey } from "../utils";
 
 import BreakFastMeal from "../../assets/BreakFastMeal.svg";
 import LunchMeal from "../../assets/LunchMeal.svg";
@@ -30,23 +32,6 @@ import DinnerMeal from "../../assets/DinnerMeal.svg";
 const { width } = Dimensions.get("window");
 const isSmall = width < 380;
 
-// ── Design tokens ──────────────────────────────
-const C = {
-  bg: "#F4F7F5",
-  surface: "#FFFFFF",
-  border: "#E8EEE9",
-  primary: "#0A7A3E",
-  primaryMid: "#14A855",
-  primaryLight: "#16aa16",
-  primaryDark: "#064D27",
-  text: "#0D1F16",
-  textSub: "#4B6B57",
-  textMuted: "#8CA898",
-  amber: "#D97706",
-  blue: "#2563EB",
-  emerald: "#059669",
-  purple: "#9333EA",
-};
 
 const MEAL_META = [
   {
@@ -89,17 +74,9 @@ const SUGGESTED = {
 // ─────────────────────────────────────────────────────
 const DietDashRN = () => {
   const navigation = useNavigation();
-  const [mealTray, setMealTray] = useState({
-    Breakfast: [],
-    Lunch: [],
-    Snacks: [],
-    Dinner: [],
-  });
+  const [mealTray, setMealTray] = useState({ ...DEFAULT_MEALS });
 
-  const getTodayKey = () => {
-    const d = new Date();
-    return `nutritionLog_${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  };
+
 
   useFocusEffect(
     useCallback(() => {
@@ -110,9 +87,9 @@ const DietDashRN = () => {
             const data = JSON.parse(raw);
             if (data.meals) setMealTray(data.meals);
           } else {
-            setMealTray({ Breakfast: [], Lunch: [], Snacks: [], Dinner: [] });
+            setMealTray({ ...DEFAULT_MEALS });
           }
-        } catch {}
+        } catch (e) {console.warn("DietDash load failed:", e);}
       };
       load();
     }, []),

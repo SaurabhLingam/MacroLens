@@ -29,36 +29,11 @@ import { Feather, MaterialIcons, Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Text } from "../components/TextWrapper";
+import { C } from "../theme";
+import { DEFAULT_MEALS, MEAL_TYPES, MAX_RECENT_FOODS, MAX_BARCODE_CACHE, normalizeMealType, toNumber, parseJsonSafe, getTodayKey, STORAGE_KEYS, createEmptyLog, ensureMealsShape, recalculateLogTotals, readCameraPermission, requestCameraPermissionApi } from "../utils";
 
 const { width } = Dimensions.get("window");
 const isSmall = width < 380;
-
-// ── Design tokens ──────────────────────────────
-const C = {
-  bg: "#F2F6F3",
-  surface: "#FFFFFF",
-  border: "#E4EDE7",
-  primary: "#0A7A3E",
-  primaryMid: "#14A855",
-  primaryLight: "#1DB954",
-  primaryDark: "#064D27",
-  primaryGhost: "#E8F5EE",
-  text: "#0D1F16",
-  textSub: "#3D5C47",
-  textMuted: "#7EA98A",
-  blue: "#2563EB",
-  blueLight: "#EFF6FF",
-  orange: "#EA580C",
-  orangeLight: "#FFF4EE",
-  emerald: "#059669",
-  emeraldLight: "#ECFDF5",
-  amber: "#D97706",
-  amberLight: "#FFFBEB",
-  purple: "#9333EA",
-  purpleLight: "#FAF5FF",
-  danger: "#DC2626",
-  dangerLight: "#FEF2F2",
-};
 
 // ── Meal-type metadata ─────────────────────────
 const MEAL_META = {
@@ -68,24 +43,6 @@ const MEAL_META = {
   Dinner: { iconBg: "#EDE9FE", accent: C.purple, icon: "moon-outline" },
 };
 
-const DEFAULT_MEALS = { Breakfast: [], Lunch: [], Snacks: [], Dinner: [] };
-const VALID_MEAL_TYPES = Object.keys(DEFAULT_MEALS);
-const normalizeMealType = (v) => (VALID_MEAL_TYPES.includes(v) ? v : "Snacks");
-
-const ensureMealsShape = (log) => {
-  if (!log.meals || typeof log.meals !== "object") {
-    log.meals = { ...DEFAULT_MEALS };
-    return;
-  }
-  const legacy = Array.isArray(log.meals.Meal) ? log.meals.Meal : [];
-  VALID_MEAL_TYPES.forEach((m) => {
-    if (!Array.isArray(log.meals[m])) log.meals[m] = [];
-  });
-  if (legacy.length > 0) {
-    log.meals.Snacks = [...legacy, ...log.meals.Snacks];
-    delete log.meals.Meal;
-  }
-};
 
 // ── Press-scale wrapper ────────────────────────
 const PressScale = ({ onPress, style, children, disabled }) => {
@@ -240,10 +197,7 @@ const NutritionPlate = () => {
   }, []);
 
   // ── Today key ─────────────────────────────────
-  const getTodayKey = () => {
-    const t = new Date();
-    return `nutritionLog_${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-  };
+
 
   // ── Load ──────────────────────────────────────
   useEffect(() => {

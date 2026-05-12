@@ -33,6 +33,7 @@ import {
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "../components/TextWrapper";
+import { C } from "../theme";
 
 const { width, height } = Dimensions.get("window");
 const isSmall = width < 380;
@@ -41,27 +42,6 @@ const isSmall = width < 380;
 const OPEN_DURATION = 420; // ms — spring settle time (approximate)
 const CLOSE_DURATION = 300; // ms — ease-out slide down
 const SHEET_OVERSHOOT = height; // start position (off-screen bottom)
-
-// ── Design tokens ──────────────────────────────
-const C = {
-  bg: "#F2F6F3",
-  surface: "#FFFFFF",
-  border: "#E4EDE7",
-  primary: "#0A7A3E",
-  primaryMid: "#14A855",
-  primaryLight: "#1DB954",
-  primaryDark: "#064D27",
-  primaryGhost: "#E8F5EE",
-  text: "#0D1F16",
-  textSub: "#3D5C47",
-  textMuted: "#7EA98A",
-  blue: "#2563EB",
-  blueLight: "#EFF6FF",
-  orange: "#EA580C",
-  orangeLight: "#FFF4EE",
-  emerald: "#059669",
-  emeraldLight: "#ECFDF5",
-};
 
 // ── Portion configuration ──────────────────────
 const PORTION_MAP = { small: 0.75, medium: 1, large: 1.25 };

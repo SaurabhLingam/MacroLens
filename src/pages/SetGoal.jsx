@@ -22,6 +22,7 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { Text } from "../components/TextWrapper";
+import { C } from "../theme";
 
 const { width } = Dimensions.get("window");
 
@@ -30,20 +31,6 @@ const DIAL_SIZE = Math.min(width * 0.78, 300);
 const RADIUS = DIAL_SIZE * 0.4;
 const CENTER = DIAL_SIZE / 2;
 const MAX_CALORIE = 5500;
-
-// Design tokens
-const C = {
-  bg: "#F4F7F5",
-  surface: "#FFFFFF",
-  border: "#E8EEE9",
-  primary: "#0A7A3E",
-  primaryMid: "#14A855",
-  primaryLight: "#16aa16",
-  primaryDark: "#064D27",
-  text: "#0D1F16",
-  textSub: "#4B6B57",
-  textMuted: "#8CA898",
-};
 
 const CalorieGoalRN = () => {
   const navigation = useNavigation();
@@ -118,10 +105,17 @@ const CalorieGoalRN = () => {
     try {
       await AsyncStorage.setItem(
         "calorieGoalData",
-        JSON.stringify({ calorieGoal: endCalorie }),
+        JSON.stringify({
+          calorieGoal: endCalorie,
+          protein_g: Math.round((endCalorie * 0.30) / 4),
+          carbs_g: Math.round((endCalorie * 0.40) / 4),
+          fat_g: Math.round((endCalorie * 0.30) / 9),
+        }),
       );
       navigation.reset({ index: 0, routes: [{ name: "Nutrition" }] });
-    } catch {}
+    } catch (e){
+      console.warn("SetGoal save failed: " ,e);
+    }
   };
 
   // ── Percent progress label ─────────────────────

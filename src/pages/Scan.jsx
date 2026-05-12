@@ -31,94 +31,30 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { analyzeMealImageWithGroq } from "./llm";
+import { C } from "../theme";
+import { DEFAULT_MEALS, MEAL_TYPES, MAX_RECENT_FOODS, MAX_BARCODE_CACHE, normalizeMealType, toNumber, parseJsonSafe, getTodayKey, STORAGE_KEYS, createEmptyLog, ensureMealsShape, recalculateLogTotals, readCameraPermission, requestCameraPermissionApi } from "../utils";
 
 const { width, height } = Dimensions.get("window");
 const isSmall = width < 380;
 
-// ── Design tokens ──────────────────────────────
-const C = {
-  primary: "#0A7A3E",
-  primaryMid: "#14A855",
-  primaryLight: "#16aa16",
-  primaryDark: "#064D27",
-  surface: "#FFFFFF",
-  border: "#E8EEE9",
-  text: "#0D1F16",
-  textMuted: "#8CA898",
-  blue: "#2563EB",
-  orange: "#EA580C",
-  emerald: "#059669",
-  amber: "#D97706",
-};
+
 
 // ── Frame: safe height so it never overflows ──
 const FRAME_W = isSmall ? width * 0.82 : Math.min(width * 0.82, 300);
 const FRAME_H = Math.min(isSmall ? width * 0.9 : 380, height * 0.42);
 
 // ── Constants ─────────────────────────────────
-const DEFAULT_MEALS = { Breakfast: [], Lunch: [], Snacks: [], Dinner: [] };
-const VALID_MEAL_TYPES = Object.keys(DEFAULT_MEALS);
-const RECENT_FOODS_KEY = "recentFoods";
-const MAX_RECENT_FOODS = 20;
 
-const normalizeMealType = (v) => (VALID_MEAL_TYPES.includes(v) ? v : "Snacks");
-const toNumber = (v, fb = 0) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fb;
-};
-const parseJsonSafe = (raw, fb) => {
-  try {
-    return JSON.parse(raw) ?? fb;
-  } catch {
-    return fb;
-  }
-};
 
-const getTodayKey = () => {
-  const t = new Date();
-  return `nutritionLog_${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-};
-const createEmptyLog = (key) => ({
-  date: key.replace("nutritionLog_", ""),
-  totalCalories: 0,
-  totalProtein: 0,
-  totalCarbs: 0,
-  totalFat: 0,
-  meals: { ...DEFAULT_MEALS },
-});
-const ensureMealsShape = (log) => {
-  if (!log.meals || typeof log.meals !== "object") {
-    log.meals = { ...DEFAULT_MEALS };
-    return;
-  }
-  const legacy = Array.isArray(log.meals.Meal) ? log.meals.Meal : [];
-  VALID_MEAL_TYPES.forEach((m) => {
-    if (!Array.isArray(log.meals[m])) log.meals[m] = [];
-  });
-  if (legacy.length > 0) {
-    log.meals.Snacks = [...legacy, ...log.meals.Snacks];
-    delete log.meals.Meal;
-  }
-};
-const recalculateLogTotals = (log) => {
-  const all = Object.values(log.meals || {}).flat();
-  log.totalCalories = all.reduce(
-    (s, x) => s + toNumber(x.calories) * toNumber(x.quantity, 1),
-    0,
-  );
-  log.totalProtein = all.reduce(
-    (s, x) => s + toNumber(x.protein) * toNumber(x.quantity, 1),
-    0,
-  );
-  log.totalCarbs = all.reduce(
-    (s, x) => s + toNumber(x.carbs) * toNumber(x.quantity, 1),
-    0,
-  );
-  log.totalFat = all.reduce(
-    (s, x) => s + toNumber(x.fat) * toNumber(x.quantity, 1),
-    0,
-  );
-};
+
+
+
+
+
+
+
+
+
 const toMimeType = (uri) =>
   uri?.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
 const normalizeScanFood = (food, index) => ({
@@ -132,24 +68,7 @@ const normalizeScanFood = (food, index) => ({
   confidence: toNumber(food?.confidence, 0.65),
 });
 
-const readCameraPermission = async () => {
-  if (typeof Camera.getCameraPermissionsAsync === "function")
-    return Camera.getCameraPermissionsAsync();
-  if (typeof Camera.requestCameraPermissionsAsync === "function")
-    return Camera.requestCameraPermissionsAsync();
-  if (typeof Camera?.Camera?.requestCameraPermissionsAsync === "function")
-    return Camera.Camera.requestCameraPermissionsAsync();
-  throw new Error("Camera permission APIs are unavailable.");
-};
-const requestCameraPermissionApi = async () => {
-  if (typeof Camera.requestCameraPermissionsAsync === "function")
-    return Camera.requestCameraPermissionsAsync();
-  if (typeof Camera?.Camera?.requestCameraPermissionsAsync === "function")
-    return Camera.Camera.requestCameraPermissionsAsync();
-  if (typeof Camera.getCameraPermissionsAsync === "function")
-    return Camera.getCameraPermissionsAsync();
-  throw new Error("Camera permission APIs are unavailable.");
-};
+
 
 // ── Circular macro widget ──────────────────────
 const CircularMacro = memo(({ label, value, unit, color, percentage }) => {
@@ -400,7 +319,7 @@ const ScanRN = () => {
     try {
       const pic = await cameraRef.current.takePictureAsync({
         base64: true,
-        quality: 0.45,
+        quality: 0.7,
         skipProcessing: true,
       });
       if (!pic?.base64)
@@ -488,7 +407,7 @@ const ScanRN = () => {
       recalculateLogTotals(log);
       await AsyncStorage.setItem(key, JSON.stringify(log));
       // recent
-      const rr = await AsyncStorage.getItem(RECENT_FOODS_KEY);
+      const rr = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_FOODS);
       const rarr = Array.isArray(parseJsonSafe(rr, []))
         ? parseJsonSafe(rr, [])
         : [];
@@ -508,7 +427,7 @@ const ScanRN = () => {
         addedAt: new Date().toISOString(),
       };
       await AsyncStorage.setItem(
-        RECENT_FOODS_KEY,
+        STORAGE_KEYS.RECENT_FOODS,
         JSON.stringify(
           [
             ri,

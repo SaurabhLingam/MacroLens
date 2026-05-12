@@ -1,4 +1,4 @@
-// App.jsx  — updated with Login / Signup replacing Intro + PersonalDetails
+// App.jsx
 import React, { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -13,13 +13,11 @@ import BarcodeScanner from "./src/pages/BarcodeScanner";
 import Nutrition from "./src/pages/Nutrition";
 import SetGoal from "./src/pages/SetGoal";
 import History from "./src/pages/History";
-import Login from "./src/pages/Login";
-import Signup from "./src/pages/Signup";
 import { Text } from "./src/components/TextWrapper";
 import { useAppFonts } from "./src/components/TextWrapper";
 
 const Stack = createNativeStackNavigator();
-const AUTH_KEY = "nutritionOnboardingComplete";
+const GOAL_KEY = "calorieGoalData";
 
 const Consultation = () => (
   <View style={styles.consultationContainer}>
@@ -32,12 +30,6 @@ const Consultation = () => (
   </View>
 );
 
-// Slide transition config
-const slideFromRight = {
-  animation: "slide_from_right",
-  animationDuration: 280,
-};
-
 export default function App() {
   const appReady = useAppFonts();
   const [initialRouteName, setInitialRouteName] = useState(null);
@@ -46,18 +38,16 @@ export default function App() {
     let mounted = true;
     const resolveRoute = async () => {
       try {
-        const done = await AsyncStorage.getItem(AUTH_KEY);
+        const goalSet = await AsyncStorage.getItem(GOAL_KEY);
         if (!mounted) return;
-        setInitialRouteName(done === "true" ? "Nutrition" : "NutritionLogin");
+        setInitialRouteName(goalSet ? "Nutrition" : "NutritionSetGoal");
       } catch {
         if (!mounted) return;
-        setInitialRouteName("NutritionLogin");
+        setInitialRouteName("NutritionSetGoal");
       }
     };
     resolveRoute();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   if (!appReady || !initialRouteName) return null;
@@ -73,15 +63,11 @@ export default function App() {
           animationDuration: 300,
         }}
       >
-        {/* ── Auth ── */}
         <Stack.Screen
-          name="NutritionLogin"
-          component={Login}
+          name="NutritionSetGoal"
+          component={SetGoal}
           options={{ animation: "fade" }}
         />
-        <Stack.Screen name="NutritionSignup" component={Signup} />
-
-        {/* ── App ── */}
         <Stack.Screen
           name="Nutrition"
           component={Nutrition}
@@ -92,7 +78,6 @@ export default function App() {
         <Stack.Screen name="NutritionPlate" component={NutritionPlate} />
         <Stack.Screen name="NutritionScan" component={Scan} />
         <Stack.Screen name="NutritionBarcode" component={BarcodeScanner} />
-        <Stack.Screen name="NutritionSetGoal" component={SetGoal} />
         <Stack.Screen name="NutritionHistory" component={History} />
         <Stack.Screen name="Consultation" component={Consultation} />
       </Stack.Navigator>

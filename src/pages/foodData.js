@@ -229,7 +229,7 @@ export const FOOD_DATA = [
     carbs: 25.1,
     fats: 0.3,
     serving: "1 medium",
-    category: "snack",
+    category: "snacks",
   },
   {
     id: "sn_002",
@@ -239,7 +239,7 @@ export const FOOD_DATA = [
     carbs: 6.0,
     fats: 16.0,
     serving: "30g",
-    category: "snack",
+    category: "snacks",
   },
   {
     id: "sn_003",
@@ -249,7 +249,7 @@ export const FOOD_DATA = [
     carbs: 22.0,
     fats: 7.0,
     serving: "1 bar (60g)",
-    category: "snack",
+    category: "snacks",
   },
   {
     id: "sn_004",
@@ -259,7 +259,7 @@ export const FOOD_DATA = [
     carbs: 18.0,
     fats: 6.0,
     serving: "4 tbsp hummus + 100g carrots",
-    category: "snack",
+    category: "snacks",
   },
   {
     id: "sn_005",
@@ -269,7 +269,7 @@ export const FOOD_DATA = [
     carbs: 4.0,
     fats: 4.3,
     serving: "½ cup (113g)",
-    category: "snack",
+    category: "snacks",
   },
   {
     id: "sn_006",
@@ -279,7 +279,7 @@ export const FOOD_DATA = [
     carbs: 13.0,
     fats: 12.0,
     serving: "30g (3 squares)",
-    category: "snack",
+    category: "snacks",
   },
   {
     id: "sn_007",
@@ -289,7 +289,7 @@ export const FOOD_DATA = [
     carbs: 15.4,
     fats: 0.2,
     serving: "1 medium",
-    category: "snack",
+    category: "snacks",
   },
   {
     id: "sn_008",
@@ -299,7 +299,7 @@ export const FOOD_DATA = [
     carbs: 15.0,
     fats: 0.6,
     serving: "2 cakes",
-    category: "snack",
+    category: "snacks",
   },
   {
     id: "sn_009",
@@ -309,7 +309,7 @@ export const FOOD_DATA = [
     carbs: 5.0,
     fats: 2.0,
     serving: "1 scoop in water",
-    category: "snack",
+    category: "snacks",
   },
   {
     id: "sn_010",
@@ -319,7 +319,7 @@ export const FOOD_DATA = [
     carbs: 38.0,
     fats: 14.0,
     serving: "1 banana + 2 tbsp PB",
-    category: "snack",
+    category: "snacks",
   },
 
   // ── DINNER ─────────────────────────────────
@@ -448,6 +448,6 @@ export const searchFoods = (query) => {
 export const MEAL_TO_CATEGORY = {
   Breakfast: "breakfast",
   Lunch: "lunch",
-  Snacks: "snack",
+  Snacks: "snacks",
   Dinner: "dinner",
 };

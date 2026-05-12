@@ -30,43 +30,15 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { Text } from "../components/TextWrapper";
+import { C } from "../theme";
+import { parseJsonSafe } from "../utils";
 
 const { width } = Dimensions.get("window");
 const isSmall = width < 380;
 
 // ── Design tokens ──────────────────────────────
-const C = {
-  bg: "#F2F6F3",
-  surface: "#FFFFFF",
-  border: "#E4EDE7",
-  primary: "#0A7A3E",
-  primaryMid: "#14A855",
-  primaryLight: "#1DB954",
-  primaryDark: "#064D27",
-  primaryGhost: "#E8F5EE",
-  text: "#0D1F16",
-  textSub: "#3D5C47",
-  textMuted: "#7EA98A",
-  blue: "#2563EB",
-  blueLight: "#EFF6FF",
-  orange: "#EA580C",
-  orangeLight: "#FFF4EE",
-  emerald: "#059669",
-  emeraldLight: "#ECFDF5",
-  amber: "#D97706",
-  amberLight: "#FFFBEB",
-};
-
 // ── Constants ─────────────────────────────────
 const LOG_PREFIX = "nutritionLog_";
-
-const parseJsonSafe = (raw, fallback) => {
-  try {
-    return JSON.parse(raw) ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
 
 const formatDate = (value) => {
   if (!value) return "Unknown date";

@@ -22,40 +22,15 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "../components/TextWrapper";
+import { C } from "../theme";
+import { DEFAULT_MEALS, MEAL_TYPES, MAX_RECENT_FOODS, MAX_BARCODE_CACHE, normalizeMealType, toNumber, parseJsonSafe, getTodayKey, STORAGE_KEYS, createEmptyLog, ensureMealsShape, recalculateLogTotals, readCameraPermission, requestCameraPermissionApi } from "../utils";
 
 const { width } = Dimensions.get("window");
 
 // ── Design tokens ──────────────────────────────
-const C = {
-  primary: "#0A7A3E",
-  primaryMid: "#14A855",
-  primaryLight: "#16aa16",
-  primaryDark: "#064D27",
-  blue: "#2563EB",
-  orange: "#EA580C",
-  emerald: "#059669",
-};
 
 // ── Constants ─────────────────────────────────
-const DEFAULT_MEALS = { Breakfast: [], Lunch: [], Snacks: [], Dinner: [] };
-const VALID_MEAL_TYPES = Object.keys(DEFAULT_MEALS);
-const RECENT_FOODS_KEY = "recentFoods";
-const MAX_RECENT_FOODS = 20;
-const BARCODE_CACHE_KEY = "barcodeProductCache";
-const MAX_BARCODE_CACHE = 80;
 
-const normalizeMealType = (v) => (VALID_MEAL_TYPES.includes(v) ? v : "Snacks");
-const toNumber = (v, fb = 0) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fb;
-};
-const parseJsonSafe = (raw, fb) => {
-  try {
-    return JSON.parse(raw) ?? fb;
-  } catch {
-    return fb;
-  }
-};
 const clampPositive = (v) => {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : null;
@@ -143,12 +118,12 @@ const calculateCalories = ({
 };
 
 const readBarcodeCache = async () => {
-  const r = await AsyncStorage.getItem(BARCODE_CACHE_KEY);
+  const r = await AsyncStorage.getItem(STORAGE_KEYS.BARCODE_CACHE);
   const p = parseJsonSafe(r, []);
   return Array.isArray(p) ? p : [];
 };
 const writeBarcodeCache = async (e) =>
-  AsyncStorage.setItem(BARCODE_CACHE_KEY, JSON.stringify(e));
+  AsyncStorage.setItem(STORAGE_KEYS.BARCODE_CACHE, JSON.stringify(e));
 const upsertBarcodeCache = async (code, product) => {
   const cache = await readBarcodeCache();
   const next = [
@@ -162,69 +137,11 @@ const getCachedProduct = async (code) => {
   return c.find((e) => String(e?.code) === String(code))?.product || null;
 };
 
-const getTodayKey = () => {
-  const t = new Date();
-  return `nutritionLog_${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-};
-const createEmptyLog = (key) => ({
-  date: key.replace("nutritionLog_", ""),
-  totalCalories: 0,
-  totalProtein: 0,
-  totalCarbs: 0,
-  totalFat: 0,
-  meals: { ...DEFAULT_MEALS },
-});
-const ensureMealsShape = (log) => {
-  if (!log.meals || typeof log.meals !== "object") {
-    log.meals = { ...DEFAULT_MEALS };
-    return;
-  }
-  const legacy = Array.isArray(log.meals.Meal) ? log.meals.Meal : [];
-  VALID_MEAL_TYPES.forEach((m) => {
-    if (!Array.isArray(log.meals[m])) log.meals[m] = [];
-  });
-  if (legacy.length > 0) {
-    log.meals.Snacks = [...legacy, ...log.meals.Snacks];
-    delete log.meals.Meal;
-  }
-};
-const recalculateLogTotals = (log) => {
-  const all = Object.values(log.meals || {}).flat();
-  log.totalCalories = all.reduce(
-    (s, x) => s + toNumber(x.calories) * toNumber(x.quantity, 1),
-    0,
-  );
-  log.totalProtein = all.reduce(
-    (s, x) => s + toNumber(x.protein) * toNumber(x.quantity, 1),
-    0,
-  );
-  log.totalCarbs = all.reduce(
-    (s, x) => s + toNumber(x.carbs) * toNumber(x.quantity, 1),
-    0,
-  );
-  log.totalFat = all.reduce(
-    (s, x) => s + toNumber(x.fat) * toNumber(x.quantity, 1),
-    0,
-  );
-};
-const readCameraPermission = async () => {
-  if (typeof Camera.getCameraPermissionsAsync === "function")
-    return Camera.getCameraPermissionsAsync();
-  if (typeof Camera.requestCameraPermissionsAsync === "function")
-    return Camera.requestCameraPermissionsAsync();
-  if (typeof Camera?.Camera?.requestCameraPermissionsAsync === "function")
-    return Camera.Camera.requestCameraPermissionsAsync();
-  throw new Error("Camera permission APIs are unavailable.");
-};
-const requestCameraPermissionApi = async () => {
-  if (typeof Camera.requestCameraPermissionsAsync === "function")
-    return Camera.requestCameraPermissionsAsync();
-  if (typeof Camera?.Camera?.requestCameraPermissionsAsync === "function")
-    return Camera.Camera.requestCameraPermissionsAsync();
-  if (typeof Camera.getCameraPermissionsAsync === "function")
-    return Camera.getCameraPermissionsAsync();
-  throw new Error("Camera permission APIs are unavailable.");
-};
+
+
+
+
+
 const buildFoodFromOpenFoodFacts = (barcode, product) => {
   const nutriments = product?.nutriments || {};
   const servingText = String(product?.serving_size || "").trim();
@@ -417,7 +334,7 @@ const BarcodeScanner = () => {
     recalculateLogTotals(log);
     await AsyncStorage.setItem(key, JSON.stringify(log));
     // update recent
-    const rr = await AsyncStorage.getItem(RECENT_FOODS_KEY);
+    const rr = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_FOODS);
     const rarr = Array.isArray(parseJsonSafe(rr, []))
       ? parseJsonSafe(rr, [])
       : [];
@@ -438,7 +355,7 @@ const BarcodeScanner = () => {
       barcode: food.barcode,
     };
     await AsyncStorage.setItem(
-      RECENT_FOODS_KEY,
+      STORAGE_KEYS.RECENT_FOODS,
       JSON.stringify(
         [
           ri,
