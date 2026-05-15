@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StyleSheet, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import WellnessScreen from "./src/home/WellnessScreen";
 import DietDash from "./src/home/DietDash";
 import AddDiet from "./src/pages/AddDiet";
 import NutritionPlate from "./src/pages/Plate";
@@ -40,7 +41,7 @@ export default function App() {
       try {
         const goalSet = await AsyncStorage.getItem(GOAL_KEY);
         if (!mounted) return;
-        setInitialRouteName(goalSet ? "Nutrition" : "NutritionSetGoal");
+        setInitialRouteName(goalSet ? "Wellness" : "NutritionSetGoal");
       } catch {
         if (!mounted) return;
         setInitialRouteName("NutritionSetGoal");
@@ -63,6 +64,11 @@ export default function App() {
           animationDuration: 300,
         }}
       >
+        <Stack.Screen
+          name="Wellness"
+          component={WellnessScreen}
+          options={{ animation: "fade" }}
+        />
         <Stack.Screen
           name="NutritionSetGoal"
           component={SetGoal}

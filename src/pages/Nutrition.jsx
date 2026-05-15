@@ -34,6 +34,14 @@ import { getTodayKey, STORAGE_KEYS } from "../utils";
 
 import NutritionSetGoalSVG from "../../assets/NutritionSetGoal.svg";
 import WellnessNutrition from "../../assets/WellnessNutrition.svg";
+import MacroLensHero from "../../assets/MacroLens.svg";
+import FoodGroup from "../../assets/Group.svg";
+import Rectangle3464971 from "../../assets/Rectangle 3464971.svg";
+import Rectangle3464972 from "../../assets/Rectangle 3464972.svg";
+import Rectangle3464973 from "../../assets/Rectangle 3464973.svg";
+import SpoonFork from "../../assets/Group 1000004794.svg";
+import ScanIcon from "../../assets/scan.svg";
+import BarcodeIcon from "../../assets/barcode.svg";
 import Svg, {
   Circle,
   Defs,
@@ -165,7 +173,20 @@ const MacroBar = ({ label, current, max, color, lightBg }) => {
     </View>
   );
 };
-
+const MiniMacroBar = ({ label, current, max, color }) => (
+  <View style={s.miniMacro}>
+    <View style={s.miniMacroLabelRow}>
+      <Text weight="700" style={s.miniMacroName}>{label}</Text>
+      <Text style={s.miniMacroVal}>{Math.round(current)}/{max}g</Text>
+    </View>
+    <View style={s.miniTrack}>
+      <View style={[s.miniFill, { 
+        width: `${Math.min((current/max)*100, 100)}%`, 
+        backgroundColor: color 
+      }]} />
+    </View>
+  </View>
+);
 /** Section header with optional right action */
 const SectionHead = ({ title, action, actionLabel }) => (
   <View style={s.sectionRow}>
@@ -304,23 +325,32 @@ const NutritionHomeRN = () => {
         style={{ opacity: heroOpacity, transform: [{ translateY: heroSlide }] }}
       >
         <LinearGradient
-          colors={[C.primaryDark, "#0D5C30", C.primaryMid]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 0.6, y: 1 }}
+          colors={["#9BE36F", "#D4F5B8", "#F5FFF5"]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.8, y: 1 }}
           style={s.hero}
         >
           {/* Decorative circles */}
           <View style={s.heroBubble1} />
           <View style={s.heroBubble2} />
+          <FoodGroup
+            width={width + 10}
+            height={320}
+            style={{ position: "absolute", left: -5, top: 120, opacity: 0.85 }}
+          />
 
           {/* Top bar */}
           <View style={s.topBar}>
             <View style={s.topCenter}>
-              <Text style={s.dateLabel}>{today}</Text>
               {currentUser && (
-                <Text weight="700" style={s.greetText}>
-                  Hello, {currentUser.name?.split(" ")[0]} 👋
-                </Text>
+                <>
+                  <Text weight="700" style={s.greetText}>
+                    Hi, {currentUser.name?.split(" ")[0]}
+                  </Text>
+                  <Text weight="700" style={s.greetSubText}>
+                    Your Today's Nutrition
+                  </Text>
+                </>
               )}
             </View>
             <TouchableOpacity
@@ -334,78 +364,56 @@ const NutritionHomeRN = () => {
 
           {/* Calorie ring — shown when goal set */}
           {isGoalSet ? (
-            <View style={s.ringSection}>
-              {/* Ring */}
-              <View style={s.ringWrap}>
-                <Svg width={140} height={140} viewBox="0 0 140 140">
-                  {/* Track */}
-                  <Circle
-                    cx="70"
-                    cy="70"
-                    r={RING_R}
-                    stroke="rgba(255,255,255,0.12)"
-                    strokeWidth="11"
-                    fill="none"
-                  />
-                  {/* Progress arc */}
-                  <Circle
-                    cx="70"
-                    cy="70"
-                    r={RING_R}
-                    stroke="#fff"
-                    strokeWidth="11"
-                    fill="none"
-                    strokeDasharray={RING_CIRC}
-                    strokeDashoffset={ringOffset}
-                    strokeLinecap="round"
-                    rotation="-90"
-                    origin="70,70"
-                  />
-                </Svg>
-                {/* Center labels */}
-                <View style={s.ringCenter}>
-                  <Text weight="800" style={s.ringMainVal}>
-                    {Math.round(intakeCalories)}
-                  </Text>
-                  <Text style={s.ringMainLabel}>kcal eaten</Text>
-                  <View style={s.ringPctBadge}>
-                    <Text weight="700" style={s.ringPctTxt}>
-                      {progressPct}%
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              {/* Stats strip */}
-              <View style={s.statsStrip}>
-                <View style={s.statItem}>
-                  <Text weight="800" style={s.statVal}>
-                    {goalCalories}
-                  </Text>
-                  <Text style={s.statLabel}>Goal</Text>
-                </View>
-                <View style={s.statDivider} />
-                <View style={s.statItem}>
-                  <Text
-                    weight="800"
-                    style={[
-                      s.statVal,
-                      caloriesLeft === 0 && { color: "#4ADE80" },
-                    ]}
-                  >
-                    {caloriesLeft}
-                  </Text>
-                  <Text style={s.statLabel}>Remaining</Text>
-                </View>
-                <View style={s.statDivider} />
-                <View style={s.statItem}>
-                  <Text weight="800" style={s.statVal}>
-                    {progressPct}%
-                  </Text>
-                  <Text style={s.statLabel}>Progress</Text>
-                </View>
+          <>
+          <View style={s.ringSection}>
+            <View style={s.macroSide}>
+              <MiniMacroBar label="Protein" current={totalProtein} max={macroTargets.protein} color="#1C6BF3" />
+              <MiniMacroBar label="Fats" current={totalFat} max={macroTargets.fat} color="#F3C51C" />
+            </View>
+            <View style={s.ringWrap}>
+              <Svg width={160} height={160} viewBox="0 0 140 140">
+                <Circle cx="70" cy="70" r={RING_R} stroke="rgba(13,92,48,0.15)" strokeWidth="11" fill="none" />
+                <Circle cx="70" cy="70" r={RING_R} stroke="#087B08" strokeWidth="11" fill="none"
+                  strokeDasharray={RING_CIRC} strokeDashoffset={ringOffset}
+                  strokeLinecap="round" rotation="-90" origin="70,70" />
+              </Svg>
+              <View style={s.ringCenter}>
+                <Text weight="700" style={s.ringMainVal}>{Math.round(intakeCalories)} Kcal</Text>
+                <Text style={s.ringMainLabel}>/ {goalCalories} kcal</Text>
+                <TouchableOpacity onPress={() => navigation.navigate("NutritionSetGoal")} style={s.editGoalBtn}>
+                  <Text weight="700" style={s.editGoalTxt}>Edit Goal</Text>
+                </TouchableOpacity>
               </View>
             </View>
+            <View style={s.macroSide}>
+              <MiniMacroBar label="Carbs" current={totalCarbs} max={macroTargets.carbs} color="#F31C1C" />
+              <View style={{ height: 21 }} />
+            </View>
+          </View>
+
+          <View style={s.quickRow}>
+          <TouchableOpacity style={s.quickCard}>
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#E6FFE5", borderRadius: 10 }]} />
+            <SpoonFork width={20} height={20} />
+            <Text weight="700" style={[s.quickTitle, { color: "#118411" }]}>Log Meal</Text>
+            <Text style={[s.quickSub, { color: "#118411" }]}>Today: 2 meals logged</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.quickCard}>
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFE7F4", borderRadius: 10 }]} />
+            <ScanIcon width={20} height={20} />
+            <Text weight="700" style={[s.quickTitle, { color: "#BD4E9C" }]}>Scan Food</Text>
+            <Text style={[s.quickSub, { color: "#D44797" }]}>Today: 3 scanned</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.quickCard}>
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFFBE7", borderRadius: 10 }]} />
+            <BarcodeIcon width={20} height={20} />
+            <Text weight="700" style={[s.quickTitle, { color: "#E5960D" }]}>Scan Barcode</Text>
+            <Text style={[s.quickSub, { color: "#E5960D" }]}>Last: Protein Bar</Text>
+          </TouchableOpacity>
+          </View>
+          </>
           ) : (
             /* Hero idle state */
             <View style={s.heroIdle}>
@@ -586,76 +594,9 @@ const NutritionHomeRN = () => {
         </>
       )}
 
-      {/* ══════════════════════════════════════
-          ADD FOOD
-      ══════════════════════════════════════ */}
-      <StaggerItem delay={isGoalSet ? 260 : 160}>
-        <SectionHead
-          title="Add Food"
-          action={() => navigation.navigate("NutritionHistory")}
-          actionLabel="History"
-        />
-      </StaggerItem>
 
-      {/* Scan quick-actions */}
-      <StaggerItem delay={isGoalSet ? 300 : 200}>
-        <View style={s.scanRow}>
-          <PressScale
-            style={{ flex: 1 }}
-            onPress={() =>
-              navigation.navigate("NutritionScan", { mealType: "Snacks" })
-            }
-          >
-            <LinearGradient
-              colors={[C.primaryDark, "#0D6633"]}
-              style={s.scanCard}
-            >
-              <View style={s.scanIconCircle}>
-                <Ionicons name="camera" size={22} color="#fff" />
-              </View>
-              <View>
-                <Text weight="700" style={s.scanCardTitle}>
-                  Scan Meal
-                </Text>
-                <Text style={s.scanCardSub}>AI food recognition</Text>
-              </View>
-              <View style={s.scanArrow}>
-                <Feather
-                  name="arrow-right"
-                  size={14}
-                  color="rgba(255,255,255,0.6)"
-                />
-              </View>
-            </LinearGradient>
-          </PressScale>
 
-          <PressScale
-            style={{ flex: 1 }}
-            onPress={() =>
-              navigation.navigate("NutritionBarcode", { mealType: "Snacks" })
-            }
-          >
-            <LinearGradient colors={["#1E3A5F", "#2563EB"]} style={s.scanCard}>
-              <View style={s.scanIconCircle}>
-                <Ionicons name="barcode-outline" size={24} color="#fff" />
-              </View>
-              <View>
-                <Text weight="700" style={s.scanCardTitle}>
-                  Scan Barcode
-                </Text>
-                <Text style={s.scanCardSub}>Packaged products</Text>
-              </View>
-              <View style={s.scanArrow}>
-                <Feather
-                  name="arrow-right"
-                  size={14}
-                  color="rgba(255,255,255,0.6)"
-                />
-              </View>
-            </LinearGradient>
-          </PressScale>
-        </View>
-      </StaggerItem>
+
 
       {/* Meal type grid */}
       <StaggerItem delay={isGoalSet ? 340 : 240}>
@@ -750,10 +691,10 @@ const s = StyleSheet.create({
 
   // ── Hero ──────────────────────────────────
   hero: {
+    paddingTop: 160,
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 58 : 40,
-    paddingBottom: 28,
-    overflow: "hidden",
+    paddingBottom: 24,
+    overflow: "hidden"
   },
   // Decorative background circles
   heroBubble1: {
@@ -778,25 +719,29 @@ const s = StyleSheet.create({
   topBar: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24,
+    justifyContent: "center",
+    marginBottom: 12,
     zIndex: 2,
+    paddingLeft: 40,
   },
   iconBtn: {
     width: 38,
     height: 38,
     borderRadius: 13,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: "rgba(13,92,48,0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
-  topCenter: { flex: 1 },
+  topCenter: { flex: 1, alignItems: "center" },
   dateLabel: {
     fontSize: 22,
-    color: "rgba(255,255,255,0.58)",
+    color: "rgba(20,80,20,0.6)",
+    textAlign: "center",
     marginBottom: 3,
     letterSpacing: 0.3,
   },
-  greetText: { fontSize: isSmall ? 17 : 25, color: "#fff" },
+  greetText: { fontSize: isSmall ? 17 : 20, color: "#1A4A0F", textAlign: "center" },
+  greetSubText: { fontSize: 13, color: "#118411", textAlign: "center" },
 
   // Hero idle
   heroIdle: { alignItems: "center", paddingVertical: 24, gap: 12 },
@@ -820,34 +765,49 @@ const s = StyleSheet.create({
   },
 
   // Calorie ring
-  ringSection: { alignItems: "center", gap: 18, zIndex: 2 },
+  ringSection: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    justifyContent: "center", 
+    gap: 8, 
+    zIndex: 2,
+    paddingHorizontal: 8,
+  },
   ringWrap: {
-    width: 140,
-    height: 140,
+    width: 160,
+    height: 160,
     alignItems: "center",
     justifyContent: "center",
   },
   ringCenter: { position: "absolute", alignItems: "center", gap: 2 },
   ringMainVal: {
-    fontSize: isSmall ? 24 : 28,
-    color: "#fff",
+    fontSize: isSmall ? 16 : 18,
+    color: "#0D5C30",
     lineHeight: isSmall ? 28 : 32,
   },
-  ringMainLabel: { fontSize: 11, color: "rgba(255,255,255,0.65)" },
+  ringMainLabel: { fontSize: 11, color: "rgba(20,80,20,0.6)" },
   ringPctBadge: {
     marginTop: 4,
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    bbackgroundColor: "rgba(13,92,48,0.12)",
   },
-  ringPctTxt: { fontSize: 11, color: "#fff" },
+  ringPctTxt: { fontSize: 11, color: "#0D5C30" },
+  editGoalBtn: {
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 5,
+    backgroundColor: "#35A329",
+  },
+  editGoalTxt: { color: "#fff", fontSize: 8 },
 
   // Stats strip
   statsStrip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(13,92,48,0.08)",
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -855,17 +815,17 @@ const s = StyleSheet.create({
     width: "100%",
   },
   statItem: { flex: 1, alignItems: "center" },
-  statVal: { fontSize: isSmall ? 15 : 17, color: "#fff" },
+  statVal: { fontSize: isSmall ? 15 : 17, color: "#0D5C30" },
   statLabel: {
     fontSize: 10,
-    color: "rgba(255,255,255,0.62)",
+    color: "rgba(20,80,20,0.55)",
     marginTop: 3,
     letterSpacing: 0.2,
   },
   statDivider: {
     width: 1,
     height: 28,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(13,92,48,0.15)",
   },
 
   // ── Goal banner ──────────────────────────
@@ -1119,4 +1079,34 @@ const s = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
+  macroSide: { width: 75, gap: 10, alignItems: "center" },
+  miniMacro: { width: 65, gap: 3 },
+  miniMacroLabelRow: { flexDirection: "column", gap: 1 },
+  miniMacroName: { fontSize: 8, color: "#1A4A0F", fontWeight: "700" },
+  miniMacroVal: { fontSize: 8, color: "rgba(0,0,0,0.65)" },
+  miniTrack: { height: 12, backgroundColor: "rgba(255,255,255,0.6)", borderRadius: 8, overflow: "hidden" },
+  miniFill: { height: "100%", borderRadius: 8 },
+  quickRow: {
+  flexDirection: "row",
+  paddingHorizontal: 16,
+  gap: 8,
+  marginTop: 16,
+  marginBottom: 8,
+},
+quickCard: {
+  flex: 1,
+  height: 62,
+  borderRadius: 10,
+  overflow: "hidden",
+  padding: 10,
+  justifyContent: "center",
+  gap: 2,
+},
+quickTitle: {
+  fontSize: 14,
+  fontWeight: "700",
+},
+quickSub: {
+  fontSize: 8,
+},
 });

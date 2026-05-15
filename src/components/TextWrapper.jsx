@@ -14,8 +14,16 @@ import {
   Outfit_800ExtraBold,
   Outfit_900Black,
 } from "@expo-google-fonts/outfit";
+import {
+  Overlock_400Regular,
+  Overlock_400Regular_Italic,
+  Overlock_700Bold,
+  Overlock_700Bold_Italic,
+  Overlock_900Black,
+  Overlock_900Black_Italic,
+} from "@expo-google-fonts/overlock";
 
-const fontMap = {
+const outfitMap = {
   100: "Outfit_100Thin",
   200: "Outfit_200ExtraLight",
   300: "Outfit_300Light",
@@ -25,6 +33,12 @@ const fontMap = {
   700: "Outfit_700Bold",
   800: "Outfit_800ExtraBold",
   900: "Outfit_900Black",
+};
+
+const overlockMap = {
+  400: "Overlock_400Regular",
+  700: "Overlock_700Bold",
+  900: "Overlock_900Black",
 };
 
 // Keep splash screen visible while fonts load
@@ -45,9 +59,15 @@ export const useAppFonts = () => {
     Outfit_700Bold,
     Outfit_800ExtraBold,
     Outfit_900Black,
+    Overlock_400Regular,
+    Overlock_400Regular_Italic,
+    Overlock_700Bold,
+    Overlock_700Bold_Italic,
+    Overlock_900Black,
+    Overlock_900Black_Italic,
   });
 
-  const [splashHidden, setSplashHidden] = React.useState(false); // Track if SplashScreen.hideAsync has been called
+  const [splashHidden, setSplashHidden] = React.useState(false);
 
   useEffect(() => {
     if ((fontsLoaded || fontError) && !splashHidden) {
@@ -72,30 +92,34 @@ const Text = ({
   children,
   heading = false,
   color,
+  overlock = false,  // pass overlock={true} to use Overlock font
+  italic = false,
   ...props
 }) => {
-  // Extract fontSize from style to determine if it's a heading
   const flatStyle = Array.isArray(style)
     ? Object.assign({}, ...style)
     : style || {};
 
-  // Restore permissive heading behavior: allow inline overrides while keeping sensible defaults
   const fontSize = size || flatStyle.fontSize || 14;
-
-  // Auto-detect headings based on fontSize or explicit heading prop
   const isHeading = heading || fontSize >= 18;
-
-  // Default weight logic: headings should be bold (700), others medium (500)
   const defaultWeight = isHeading ? 700 : weight !== undefined ? weight : 400;
   const finalWeight = weight !== undefined ? weight : defaultWeight;
-  const fontFamily = fontMap[finalWeight] || fontMap[400];
 
-  // Prefer explicit color props/style; otherwise use sensible default for headings
+  // Font family selection
+  let fontFamily;
+  if (overlock) {
+    // Find nearest Overlock weight (only 400, 700, 900 available)
+    const overlockWeight =
+      finalWeight >= 800 ? 900 : finalWeight >= 600 ? 700 : 400;
+    const base = overlockMap[overlockWeight];
+    fontFamily = italic ? `${base}_Italic` : base;
+  } else {
+    fontFamily = outfitMap[finalWeight] || outfitMap[400];
+  }
+
   const textColor =
     color || flatStyle.color || (isHeading ? "#1E293B" : "#111827");
   const textLineHeight = flatStyle.lineHeight || Math.round(fontSize * 1.25);
-
-  // No console logs in production or dev to avoid noisy output
 
   return (
     <RNText
