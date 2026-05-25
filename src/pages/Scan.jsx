@@ -1,11 +1,12 @@
 /**
- * Scan.jsx (MealScan) — Premium redesign
- * Fixed frame overflow on small screens, proper handle bar on results sheet,
- * legible scan result cards, animated scan line, improved permission screen.
+ * Scan.jsx (MealScan) — Redesigned to match BarcodeScanner
+ * White header with purple text, white bottom sheet result modal,
+ * meal type tabs, green gradient Add button, calorie ring per item.
  * All logic, navigation, and AsyncStorage usage preserved exactly.
+ * Fixed: mealType key now uses capitalized form to match Nutrition.jsx.
  */
 
-import React, { memo, useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useRef, useState, useCallback } from "react";
 import {
   View,
   TouchableOpacity,
@@ -19,7 +20,7 @@ import {
   Linking,
   Image,
 } from "react-native";
-import Svg, { Circle } from "react-native-svg";
+import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Camera from "expo-camera";
 import { Text } from "../components/TextWrapper";
@@ -32,31 +33,39 @@ import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { analyzeMealImageWithGroq } from "./llm";
 import { C } from "../theme";
-import { DEFAULT_MEALS, MEAL_TYPES, MAX_RECENT_FOODS, MAX_BARCODE_CACHE, normalizeMealType, toNumber, parseJsonSafe, getTodayKey, STORAGE_KEYS, createEmptyLog, ensureMealsShape, recalculateLogTotals, readCameraPermission, requestCameraPermissionApi } from "../utils";
+import {
+  MAX_RECENT_FOODS,
+  normalizeMealType,
+  toNumber,
+  parseJsonSafe,
+  getTodayKey,
+  STORAGE_KEYS,
+  createEmptyLog,
+  ensureMealsShape,
+  recalculateLogTotals,
+  readCameraPermission,
+  requestCameraPermissionApi,
+} from "../utils";
 
 const { width, height } = Dimensions.get("window");
 const isSmall = width < 380;
 
+// ── Design tokens ──────────────────────────────
+const PURPLE = "#553FB5";
+const PURPLE_LIGHT = "#EEE9FF";
+const GREEN_GRAD = ["#93D056", "#35A329"];
 
-
-// ── Frame: safe height so it never overflows ──
+// ── Frame dimensions ───────────────────────────
 const FRAME_W = isSmall ? width * 0.82 : Math.min(width * 0.82, 300);
 const FRAME_H = Math.min(isSmall ? width * 0.9 : 380, height * 0.42);
 
-// ── Constants ─────────────────────────────────
+// ── Meal tabs (capitalized to match Nutrition.jsx keys) ──
+const MEAL_TABS = ["Breakfast", "Lunch", "Snacks", "Dinner"];
 
-
-
-
-
-
-
-
-
-
-
+// ── Helpers ────────────────────────────────────
 const toMimeType = (uri) =>
   uri?.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+
 const normalizeScanFood = (food, index) => ({
   id: food?.id || `scan_food_${Date.now()}_${index}`,
   name: String(food?.name || "Unknown item"),
@@ -68,128 +77,129 @@ const normalizeScanFood = (food, index) => ({
   confidence: toNumber(food?.confidence, 0.65),
 });
 
-
-
-// ── Circular macro widget ──────────────────────
-const CircularMacro = memo(({ label, value, unit, color, percentage }) => {
-  const r = 18;
-  const sw = 3;
+// ── Calorie ring (matches BarcodeScanner) ──────
+const CalorieRing = ({ calories }) => {
+  const size = 72;
+  const stroke = 6;
+  const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
-  const safe = Math.max(0, Math.min(100, toNumber(percentage, 0)));
-  const offset = circ - (safe / 100) * circ;
+  const offset = circ * 0.05;
   return (
-    <View style={ss.circWrap}>
-      <Svg height="48" width="48" viewBox="0 0 48 48">
+    <View style={ss.ringWrap}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <Defs>
+          <SvgLinearGradient id="scanRg" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0%" stopColor="#93D056" />
+            <Stop offset="100%" stopColor="#35A329" />
+          </SvgLinearGradient>
+        </Defs>
         <Circle
-          cx="24"
-          cy="24"
-          r={r}
-          stroke="rgba(255,255,255,0.15)"
-          strokeWidth={sw}
-          fill="none"
+          cx={size / 2} cy={size / 2} r={r}
+          stroke="#F3F0FF" strokeWidth={stroke} fill="none"
         />
         <Circle
-          cx="24"
-          cy="24"
-          r={r}
-          stroke={color}
-          strokeWidth={sw}
-          strokeDasharray={circ}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          fill="none"
-          rotation="-90"
-          origin="24,24"
+          cx={size / 2} cy={size / 2} r={r}
+          stroke="url(#scanRg)" strokeWidth={stroke}
+          strokeDasharray={circ} strokeDashoffset={offset}
+          strokeLinecap="round" fill="none"
+          rotation="-90" origin={`${size / 2},${size / 2}`}
         />
       </Svg>
-      <View style={ss.circInner}>
-        <Text weight="700" style={ss.circVal}>
-          {value}
-        </Text>
-        <Text weight="500" style={ss.circLabel}>
-          {label}
-        </Text>
+      <View style={ss.ringInner}>
+        <Text weight="800" style={ss.ringCal}>{Math.round(calories)}</Text>
+        <Text style={ss.ringCalLabel}>Cal</Text>
       </View>
-      <Text weight="500" style={ss.circUnit}>
-        {unit}
-      </Text>
     </View>
   );
-});
+};
 
-// ── Scan result food card ──────────────────────
-const ScanResultFoodCard = memo(({ food, alreadyAdded, onAdd }) => {
+// ── Macro label (matches BarcodeScanner) ───────
+const MacroLabel = ({ label, value, color }) => (
+  <View style={ss.macroCol}>
+    <Text weight="700" style={[ss.macroVal, { color }]}>{value}</Text>
+    <Text style={[ss.macroLbl, { color }]}>{label}</Text>
+  </View>
+);
+
+// ── Individual food result card ─────────────────
+const ScanResultFoodCard = memo(({ food, alreadyAdded, onAdd, mealLabel }) => {
   const cal = toNumber(food.calories);
   const prot = toNumber(food.protein);
   const carb = toNumber(food.carbs);
   const fat = toNumber(food.fat);
   const conf = toNumber(food.confidence, 0.65);
+
   return (
     <View style={ss.resultCard}>
-      {/* Name + serving */}
-      <View style={ss.resultHeader}>
-        <View style={{ flex: 1 }}>
-          <Text weight="700" style={ss.resultName}>
+      {/* Food row: icon + name + ring */}
+      <View style={ss.foodRow}>
+        {/* Icon */}
+        <View style={ss.foodIcon}>
+          <Feather name="camera" size={22} color={PURPLE} />
+        </View>
+
+        {/* Name + serving + confidence */}
+        <View style={ss.foodMeta}>
+          <Text weight="700" style={ss.foodName} numberOfLines={2}>
             {food.name}
           </Text>
-          <Text style={ss.resultServing}>{food.serving}</Text>
+          <View style={ss.foodSubRow}>
+            <Text style={ss.foodServing}>{food.serving}</Text>
+            <View style={ss.confBadge}>
+              <Text weight="600" style={ss.confTxt}>
+                {Math.round(conf * 100)}% match
+              </Text>
+            </View>
+          </View>
         </View>
-        <View style={ss.confBadge}>
-          <Text weight="600" style={ss.confTxt}>
-            {Math.round(conf * 100)}%
-          </Text>
-        </View>
+
+        {/* Calorie ring */}
+        <CalorieRing calories={cal} />
       </View>
-      {/* Macro rings */}
-      <View style={ss.macroRingRow}>
-        <CircularMacro
-          label="Cal"
-          value={Math.round(cal)}
-          unit="kcal"
-          color="#22c55e"
-          percentage={Math.min((cal / 600) * 100, 100)}
+
+      {/* Macro row */}
+      <View style={ss.macroRow}>
+        <MacroLabel
+          label="Protein"
+          value={`${prot.toFixed(1)}g`}
+          color={PURPLE}
         />
-        <CircularMacro
-          label="Prot"
-          value={prot.toFixed(1)}
-          unit="g"
-          color="#3b82f6"
-          percentage={Math.min((prot / 50) * 100, 100)}
+        <View style={ss.macroDivider} />
+        <MacroLabel
+          label="Carbs"
+          value={`${carb.toFixed(1)}g`}
+          color="#35A329"
         />
-        <CircularMacro
-          label="Carb"
-          value={carb.toFixed(1)}
-          unit="g"
-          color="#eab308"
-          percentage={Math.min((carb / 80) * 100, 100)}
-        />
-        <CircularMacro
-          label="Fat"
-          value={fat.toFixed(1)}
-          unit="g"
-          color="#f97316"
-          percentage={Math.min((fat / 30) * 100, 100)}
+        <View style={ss.macroDivider} />
+        <MacroLabel
+          label="Fats"
+          value={`${fat.toFixed(1)}g`}
+          color="#F97316"
         />
       </View>
+
       {/* Add button */}
       <TouchableOpacity
-        activeOpacity={0.85}
+        activeOpacity={0.88}
         onPress={onAdd}
-        style={[ss.cardAddBtn, alreadyAdded && ss.cardAddBtnDone]}
         disabled={alreadyAdded}
+        style={ss.addBtnWrap}
       >
-        {alreadyAdded ? (
-          <>
-            <Feather name="check" size={14} color="#fff" />
-            <Text weight="700" style={ss.cardAddBtnTxt}>
-              Added
-            </Text>
-          </>
-        ) : (
-          <Text weight="700" style={ss.cardAddBtnTxt}>
-            + Add to Tray
-          </Text>
-        )}
+        <LinearGradient
+          colors={alreadyAdded ? ["#374151", "#374151"] : GREEN_GRAD}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={ss.addBtn}
+        >
+          {alreadyAdded ? (
+            <View style={ss.addBtnInner}>
+              <Feather name="check" size={14} color="#fff" />
+              <Text weight="700" style={ss.addBtnTxt}>Added to {mealLabel}</Text>
+            </View>
+          ) : (
+            <Text weight="700" style={ss.addBtnTxt}>+ Add to Tray</Text>
+          )}
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );
@@ -199,7 +209,7 @@ const ScanResultFoodCard = memo(({ food, alreadyAdded, onAdd }) => {
 const ScanRN = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const mealType = normalizeMealType(route.params?.mealType);
+  const initialMeal = normalizeMealType(route.params?.mealType);
 
   const cameraRef = useRef(null);
   const [cameraPermission, setCameraPermission] = useState(null);
@@ -210,39 +220,64 @@ const ScanRN = () => {
   const [scanError, setScanError] = useState("");
   const [addedItems, setAddedItems] = useState({});
   const [capturedUri, setCapturedUri] = useState("");
-  const [animValue] = useState(new Animated.Value(0));
   const [cameraKey, setCameraKey] = useState(Date.now());
+  const [selectedMeal, setSelectedMeal] = useState(
+    MEAL_TABS.find((t) => t.toLowerCase() === initialMeal?.toLowerCase()) || "Breakfast"
+  );
 
+  const [animValue] = useState(new Animated.Value(0));
   const lineAnim = useRef(new Animated.Value(0)).current;
+  const sheetAnim = useRef(new Animated.Value(400)).current;
+
+  // ── Scan line loop ─────────────────────────
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(lineAnim, {
-          toValue: 1,
-          duration: 1600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(lineAnim, {
-          toValue: 0,
-          duration: 1600,
-          useNativeDriver: true,
-        }),
-      ]),
+        Animated.timing(lineAnim, { toValue: 1, duration: 1600, useNativeDriver: true }),
+        Animated.timing(lineAnim, { toValue: 0, duration: 1600, useNativeDriver: true }),
+      ])
     );
     loop.start();
     return () => loop.stop();
   }, []);
 
+  // ── Analyzing pulse ────────────────────────
+  useEffect(() => {
+    if (!isAnalyzing) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(animValue, { toValue: 1, duration: 750, useNativeDriver: true }),
+        Animated.timing(animValue, { toValue: 0, duration: 750, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [animValue, isAnalyzing]);
+
+  // ── Sheet slide-up when scan completes ─────
+  useEffect(() => {
+    if (scanComplete) {
+      Animated.spring(sheetAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 4,
+        speed: 14,
+      }).start();
+    } else {
+      sheetAnim.setValue(400);
+    }
+  }, [scanComplete]);
+
   const hasPermission = cameraPermission?.granted ?? null;
 
   useFocusEffect(
-    React.useCallback(() => {
+    useCallback(() => {
       setCameraKey(Date.now());
       readCameraPermission()
         .then((p) => setCameraPermission(p))
         .catch(() => {});
       return undefined;
-    }, []),
+    }, [])
   );
 
   const requestCameraPermission = async () => {
@@ -270,30 +305,8 @@ const ScanRN = () => {
       }
     };
     ask();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
-
-  useEffect(() => {
-    if (!isAnalyzing) return undefined;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(animValue, {
-          toValue: 1,
-          duration: 750,
-          useNativeDriver: true,
-        }),
-        Animated.timing(animValue, {
-          toValue: 0,
-          duration: 750,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [animValue, isAnalyzing]);
 
   const resetScanState = () => {
     setScanComplete(false);
@@ -349,8 +362,11 @@ const ScanRN = () => {
     }
   };
 
+  // ── addToTray: uses capitalized selectedMeal to match Nutrition.jsx ──
   const addToTray = async (food, quantity = 1) => {
     try {
+      // Capitalized key matches Nutrition.jsx's mealTray["Breakfast"] etc.
+      const mealType = selectedMeal;
       const key = getTodayKey();
       const raw = await AsyncStorage.getItem(key);
       const log = raw
@@ -361,14 +377,9 @@ const ScanRN = () => {
         ? [...log.meals[mealType]]
         : [];
       const qty = Math.max(1, toNumber(quantity, 1));
-      const nm = String(food.name || "")
-        .trim()
-        .toLowerCase();
+      const nm = String(food.name || "").trim().toLowerCase();
       const idx = items.findIndex(
-        (x) =>
-          String(x.name || "")
-            .trim()
-            .toLowerCase() === nm,
+        (x) => String(x.name || "").trim().toLowerCase() === nm
       );
       if (idx >= 0) {
         const ex = items[idx];
@@ -382,8 +393,7 @@ const ScanRN = () => {
           confidence: toNumber(food.confidence, ex.confidence || 0.65),
           quantity: toNumber(ex.quantity, 1) + qty,
           totalCalories:
-            toNumber(food.calories, ex.calories) *
-            (toNumber(ex.quantity, 1) + qty),
+            toNumber(food.calories, ex.calories) * (toNumber(ex.quantity, 1) + qty),
           addedAt: new Date().toISOString(),
           mealType,
         };
@@ -406,14 +416,10 @@ const ScanRN = () => {
       log.meals[mealType] = items;
       recalculateLogTotals(log);
       await AsyncStorage.setItem(key, JSON.stringify(log));
-      // recent
+      // recent foods
       const rr = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_FOODS);
-      const rarr = Array.isArray(parseJsonSafe(rr, []))
-        ? parseJsonSafe(rr, [])
-        : [];
-      const rk = String(food.name || "")
-        .trim()
-        .toLowerCase();
+      const rarr = Array.isArray(parseJsonSafe(rr, [])) ? parseJsonSafe(rr, []) : [];
+      const rk = String(food.name || "").trim().toLowerCase();
       const ri = {
         id: food.id || `${Date.now()}_${rk}`,
         name: food.name,
@@ -432,15 +438,15 @@ const ScanRN = () => {
           [
             ri,
             ...rarr.filter(
-              (x) =>
-                String(x?.name || "")
-                  .trim()
-                  .toLowerCase() !== rk,
+              (x) => String(x?.name || "").trim().toLowerCase() !== rk
             ),
-          ].slice(0, MAX_RECENT_FOODS),
-        ),
+          ].slice(0, MAX_RECENT_FOODS)
+        )
       );
       setAddedItems((prev) => ({ ...prev, [food.id || ri.id]: true }));
+      const todayScanKey = `scan_count_${getTodayKey()}`;
+      const prev = await AsyncStorage.getItem(todayScanKey);
+      await AsyncStorage.setItem(todayScanKey, String((parseInt(prev) || 0) + 1));
     } catch {
       setScanError("Could not save item to tray. Please try again.");
     }
@@ -452,21 +458,15 @@ const ScanRN = () => {
     return remaining.length;
   };
 
-  // ── Permission: loading ───────────────────────
+  // ── Permission: loading ────────────────────
   if (hasPermission === null) {
     return (
       <View style={ss.centered}>
         <View style={ss.permIconWrap}>
-          <Feather name="camera" size={36} color={C.primaryLight} />
+          <Feather name="camera" size={36} color={PURPLE} />
         </View>
-        <ActivityIndicator
-          size="large"
-          color={C.primaryLight}
-          style={{ marginBottom: 14 }}
-        />
-        <Text weight="700" style={ss.centeredTitle}>
-          Camera Access
-        </Text>
+        <ActivityIndicator size="large" color={PURPLE} style={{ marginBottom: 14 }} />
+        <Text weight="700" style={ss.centeredTitle}>Camera Access</Text>
         <Text style={ss.centeredSub}>
           Requesting permission to use your camera...
         </Text>
@@ -474,19 +474,17 @@ const ScanRN = () => {
     );
   }
 
-  // ── Permission: denied ────────────────────────
+  // ── Permission: denied ─────────────────────
   if (hasPermission === false) {
     return (
-      <LinearGradient colors={["#0D1F16", "#1a2e1f"]} style={ss.centered}>
-        <View
-          style={[ss.permIconWrap, { backgroundColor: "rgba(229,57,53,0.15)" }]}
-        >
+      <View style={ss.centeredDenied}>
+        <View style={[ss.permIconWrap, { backgroundColor: "rgba(229,57,53,0.1)" }]}>
           <Feather name="camera-off" size={36} color="#E53935" />
         </View>
-        <Text weight="700" style={ss.centeredTitle}>
+        <Text weight="700" style={[ss.centeredTitle, { color: "#111" }]}>
           Camera Blocked
         </Text>
-        <Text style={ss.centeredSub}>
+        <Text style={[ss.centeredSub, { color: "#666" }]}>
           Enable camera access to scan food and estimate nutrition details.
         </Text>
         <TouchableOpacity
@@ -499,7 +497,9 @@ const ScanRN = () => {
           activeOpacity={0.85}
         >
           <LinearGradient
-            colors={[C.primaryLight, C.primaryDark]}
+            colors={GREEN_GRAD}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
             style={ss.permBtnInner}
           >
             <Text weight="700" style={ss.permBtnTxt}>
@@ -509,54 +509,56 @@ const ScanRN = () => {
             </Text>
           </LinearGradient>
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
     );
   }
 
-  // ── Main camera ───────────────────────────────
+  // ── Main camera ────────────────────────────
   return (
     <View style={ss.container}>
-      <StatusBar translucent backgroundColor="transparent" />
+      <StatusBar backgroundColor="#fff" barStyle="dark-content" />
 
+      {/* ── White header ── */}
+      <View style={ss.header}>
+        <TouchableOpacity
+          style={ss.backBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Feather name="arrow-left" size={20} color={PURPLE} />
+        </TouchableOpacity>
+        <View>
+          <Text weight="700" style={ss.headerTitle}>Scan Meal</Text>
+          <Text style={ss.headerSub}>
+            Ensure the entire meal is visible for better accuracy.
+          </Text>
+        </View>
+      </View>
+
+      {/* ── Camera / captured image ── */}
       {capturedUri ? (
         <Image
           source={{ uri: capturedUri }}
-          style={StyleSheet.absoluteFill}
+          style={ss.camera}
           resizeMode="cover"
         />
       ) : (
         <Camera.CameraView
           key={cameraKey}
           ref={cameraRef}
-          style={StyleSheet.absoluteFill}
+          style={ss.camera}
           facing="back"
           enableZoomGesture
         />
       )}
 
-      {/* Header */}
-      <LinearGradient
-        colors={["rgba(0,0,0,0.85)", "transparent"]}
-        style={ss.header}
-      >
-        <TouchableOpacity
-          style={ss.iconBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <Feather name="arrow-left" size={20} color="#fff" />
-        </TouchableOpacity>
-        <Text weight="700" style={ss.headerTitle}>
-          Scan Food · {mealType}
-        </Text>
-        <View style={{ width: 44 }} />
-      </LinearGradient>
-
-      {/* Scanning UI */}
-      {!scanComplete && (
-        <View style={ss.overlay}>
-          {/* Frame */}
-          {!capturedUri && (
-            <View style={ss.frame}>
+      {/* ── Scan guide overlay (only when camera live) ── */}
+      {!capturedUri && !scanComplete && (
+        <View style={ss.guideOverlay} pointerEvents="none">
+          <View style={ss.maskTop} />
+          <View style={ss.guideRow}>
+            <View style={ss.maskSide} />
+            <View style={[ss.scanFrame, { width: FRAME_W, height: FRAME_H }]}>
               {[ss.tl, ss.tr, ss.bl, ss.br].map((cs, i) => (
                 <View key={i} style={[ss.corner, cs]} />
               ))}
@@ -576,168 +578,160 @@ const ScanRN = () => {
                 ]}
               />
             </View>
-          )}
-
-          {/* Analyzing */}
-          {isAnalyzing && (
-            <View style={ss.analyzingBox}>
-              <Animated.View
-                style={[
-                  ss.analyzingPulse,
-                  {
-                    opacity: animValue.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.3, 0.85],
-                    }),
-                    transform: [
-                      {
-                        scale: animValue.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.9, 1.22],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              />
-              <ActivityIndicator size="large" color={C.primaryLight} />
-              <Text weight="600" style={ss.analyzingTxt}>
-                Analyzing your photo...
-              </Text>
-            </View>
-          )}
-
-          {/* Instructions */}
-          {!isAnalyzing && (
-            <View style={ss.instructions}>
-              <Text weight="700" style={ss.instructTitle}>
-                Position food in frame
-              </Text>
-              <Text style={ss.instructSub}>
-                Take one photo to estimate nutritional details
-              </Text>
-              <TouchableOpacity
-                style={ss.captureBtn}
-                onPress={startScanning}
-                activeOpacity={0.85}
-              >
-                <Feather name="camera" size={18} color="#fff" />
-                <Text weight="700" style={ss.captureBtnTxt}>
-                  Take Photo
-                </Text>
-              </TouchableOpacity>
-              {scanError ? (
-                <View style={ss.inlineError}>
-                  <Text style={ss.inlineErrorTxt}>{scanError}</Text>
-                </View>
-              ) : null}
-            </View>
-          )}
+            <View style={ss.maskSide} />
+          </View>
+          <View style={ss.maskBottom} />
         </View>
       )}
 
-      {/* Results bottom sheet */}
+      {/* ── Analyzing overlay ── */}
+      {isAnalyzing && (
+        <View style={ss.analyzingOverlay}>
+          <View style={ss.analyzingBox}>
+            <Animated.View
+              style={[
+                ss.analyzingPulse,
+                {
+                  opacity: animValue.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.85] }),
+                  transform: [{ scale: animValue.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.22] }) }],
+                },
+              ]}
+            />
+            <ActivityIndicator size="large" color={PURPLE} />
+            <Text weight="600" style={ss.analyzingTxt}>Analyzing your photo...</Text>
+          </View>
+        </View>
+      )}
+
+      {/* ── Instructions (camera live, not analyzing) ── */}
+      {!capturedUri && !isAnalyzing && !scanComplete && (
+        <View style={ss.instructWrap} pointerEvents="box-none">
+          <Text weight="700" style={ss.instructTitle}>Position food in frame</Text>
+          <Text style={ss.instructSub}>
+            Take one photo to estimate nutritional details
+          </Text>
+          <TouchableOpacity
+            style={ss.captureBtn}
+            onPress={startScanning}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={GREEN_GRAD}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={ss.captureBtnInner}
+            >
+              <Feather name="camera" size={18} color="#fff" />
+              <Text weight="700" style={ss.captureBtnTxt}>Take Photo</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          {scanError ? (
+            <View style={ss.inlineError}>
+              <Text style={ss.inlineErrorTxt}>{scanError}</Text>
+            </View>
+          ) : null}
+        </View>
+      )}
+
+      {/* ── Result bottom sheet ── */}
       {scanComplete && (
-        <View style={ss.resultsSheet}>
+        <Animated.View
+          style={[ss.sheet, { transform: [{ translateY: sheetAnim }] }]}
+        >
           {/* Handle */}
           <View style={ss.sheetHandle} />
 
-          {/* Header */}
+          {/* Sheet header */}
           <View style={ss.sheetHeader}>
             <View>
-              <Text weight="800" style={ss.sheetTitle}>
-                Scan Results
+              <Text weight="800" style={ss.sheetTitle}>Scan Results</Text>
+              <Text style={ss.sheetSub}>
+                {scanResult.length} item{scanResult.length !== 1 ? "s" : ""} detected
               </Text>
-              <Text style={ss.sheetSub}>Tap + to add items to your tray</Text>
             </View>
-            <View style={ss.completeBadge}>
+            <View style={ss.doneBadge}>
               <Feather name="check" size={13} color="#fff" />
-              <Text weight="600" style={ss.completeBadgeTxt}>
-                Done
-              </Text>
+              <Text weight="600" style={ss.doneBadgeTxt}>Done</Text>
             </View>
           </View>
 
-          {/* Total pills */}
+          {/* Totals pills */}
           {scanTotals && (
             <View style={ss.totalsRow}>
               {[
-                {
-                  l: "Cal",
-                  v: `${Math.round(toNumber(scanTotals.calories))} kcal`,
-                  bg: "#D1FAE5",
-                  fg: C.emerald,
-                },
-                {
-                  l: "P",
-                  v: `${toNumber(scanTotals.protein).toFixed(1)}g`,
-                  bg: "#DBEAFE",
-                  fg: C.blue,
-                },
-                {
-                  l: "C",
-                  v: `${toNumber(scanTotals.carbs).toFixed(1)}g`,
-                  bg: "#FEF3C7",
-                  fg: C.amber,
-                },
-                {
-                  l: "F",
-                  v: `${toNumber(scanTotals.fat).toFixed(1)}g`,
-                  bg: "#FEE0D1",
-                  fg: C.orange,
-                },
+                { l: "Cal", v: `${Math.round(toNumber(scanTotals.calories))} kcal`, bg: "#D1FAE5", fg: "#059669" },
+                { l: "P",   v: `${toNumber(scanTotals.protein).toFixed(1)}g`,       bg: "#EEE9FF", fg: PURPLE   },
+                { l: "C",   v: `${toNumber(scanTotals.carbs).toFixed(1)}g`,         bg: "#FEF3C7", fg: "#D97706" },
+                { l: "F",   v: `${toNumber(scanTotals.fat).toFixed(1)}g`,           bg: "#FEE0D1", fg: "#EA580C" },
               ].map((x) => (
-                <View
-                  key={x.l}
-                  style={[ss.totalPill, { backgroundColor: x.bg }]}
-                >
-                  <Text weight="600" style={[ss.totalPillTxt, { color: x.fg }]}>
-                    {x.v}
-                  </Text>
+                <View key={x.l} style={[ss.totalPill, { backgroundColor: x.bg }]}>
+                  <Text weight="600" style={[ss.totalPillTxt, { color: x.fg }]}>{x.v}</Text>
                 </View>
               ))}
             </View>
           )}
 
-          {scanError && (
+          {scanError ? (
             <View style={ss.sheetError}>
               <Text style={ss.sheetErrorTxt}>{scanError}</Text>
             </View>
-          )}
+          ) : null}
+
+          {/* Divider */}
+          <View style={ss.divider} />
+
+          {/* Meal type tabs */}
+          <View style={ss.mealTabs}>
+            {MEAL_TABS.map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={[ss.mealTab, selectedMeal === tab && ss.mealTabActive]}
+                onPress={() => setSelectedMeal(tab)}
+                activeOpacity={0.75}
+              >
+                <Text
+                  weight={selectedMeal === tab ? "700" : "500"}
+                  style={[ss.mealTabTxt, selectedMeal === tab && ss.mealTabTxtActive]}
+                >
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
           {/* Food cards */}
           <ScrollView
             contentContainerStyle={ss.resultsScroll}
             showsVerticalScrollIndicator={false}
           >
-            {scanResult.map((food) => (
-              <ScanResultFoodCard
-                key={food.id}
-                food={food}
-                alreadyAdded={!!addedItems[food.id]}
-                onAdd={() => addToTray(food, 1)}
-              />
-            ))}
-            {scanResult.length === 0 && (
+            {scanResult.length === 0 ? (
               <View style={ss.noResults}>
-                <Feather name="alert-circle" size={24} color={C.textMuted} />
+                <Feather name="alert-circle" size={24} color="#9CA3AF" />
                 <Text style={ss.noResultsTxt}>
                   No food items detected from this image.
                 </Text>
               </View>
+            ) : (
+              scanResult.map((food) => (
+                <ScanResultFoodCard
+                  key={food.id}
+                  food={food}
+                  alreadyAdded={!!addedItems[food.id]}
+                  mealLabel={selectedMeal}
+                  onAdd={() => addToTray(food, 1)}
+                />
+              ))
             )}
           </ScrollView>
 
           {/* Action row */}
-          <View style={ss.sheetActions}>
+          <View style={ss.actionRow}>
             <TouchableOpacity
               style={ss.scanAgainBtn}
               onPress={resetScanState}
               activeOpacity={0.85}
             >
-              <Text weight="700" style={ss.scanAgainTxt}>
-                Scan Again
-              </Text>
+              <Text weight="700" style={ss.scanAgainTxt}>Scan Again</Text>
             </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.9}
@@ -748,9 +742,9 @@ const ScanRN = () => {
               }}
             >
               <LinearGradient
-                colors={[C.primaryLight, C.primaryDark]}
-                start={[0, 0]}
-                end={[1, 1]}
+                colors={GREEN_GRAD}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
                 style={ss.saveContinueBtn}
               >
                 <Text weight="700" style={ss.saveContinueTxt}>
@@ -759,7 +753,7 @@ const ScanRN = () => {
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       )}
     </View>
   );
@@ -767,31 +761,38 @@ const ScanRN = () => {
 
 export default ScanRN;
 
-// ── Styles ─────────────────────────────────────────
+// ── Styles ──────────────────────────────────────────
 const ss = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
 
-  // Permission screens
+  // ── Permission screens ──
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0D1F16",
+    backgroundColor: "#fff",
+    paddingHorizontal: 28,
+  },
+  centeredDenied: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
     paddingHorizontal: 28,
   },
   permIconWrap: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "rgba(22,170,22,0.15)",
+    backgroundColor: PURPLE_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
   },
-  centeredTitle: { fontSize: 22, color: "#fff", marginBottom: 8 },
+  centeredTitle: { fontSize: 22, color: PURPLE, marginBottom: 8 },
   centeredSub: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.62)",
+    color: "#888",
     textAlign: "center",
     marginBottom: 28,
     lineHeight: 20,
@@ -800,89 +801,60 @@ const ss = StyleSheet.create({
   permBtnInner: { paddingVertical: 14, alignItems: "center" },
   permBtnTxt: { color: "#fff", fontSize: 16 },
 
-  // Header
+  // ── Header ──
   header: {
-    position: "absolute",
-    top: 0,
-    width: "100%",
+    backgroundColor: "#fff",
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: Platform.OS === "ios" ? 52 : 32,
-    paddingHorizontal: isSmall ? 16 : 20,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "ios" ? 56 : (StatusBar.currentHeight ?? 28) + 12,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
     zIndex: 10,
   },
-  iconBtn: {
-    width: isSmall ? 38 : 44,
-    height: isSmall ? 38 : 44,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    color: "#fff",
-    fontSize: isSmall ? 15 : 17,
-    textAlign: "center",
-  },
-
-  // Overlay
-  overlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  // Frame
-  frame: {
-    width: FRAME_W,
-    height: FRAME_H,
+  backBtn: {
+    width: 36,
+    height: 36,
     borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: { fontSize: 17, color: PURPLE },
+  headerSub: { fontSize: 12, color: PURPLE, marginTop: 2, opacity: 0.8 },
+
+  // ── Camera ──
+  camera: { flex: 1 },
+
+  // ── Guide overlay ──
+  guideOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  maskTop: { flex: 2, backgroundColor: "rgba(0,0,0,0.55)" },
+  maskBottom: { flex: 3, backgroundColor: "rgba(0,0,0,0.55)" },
+  guideRow: { flexDirection: "row" },
+  maskSide: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
+
+  // ── Scan frame ──
+  scanFrame: {
+    borderRadius: 10,
+    overflow: "hidden",
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.25)",
     position: "relative",
-    marginBottom: 22,
-    overflow: "hidden",
   },
   corner: {
     position: "absolute",
     width: isSmall ? 22 : 28,
     height: isSmall ? 22 : 28,
     borderWidth: isSmall ? 3 : 4,
-    borderColor: C.primaryLight,
+    borderColor: "#fff",
   },
-  tl: {
-    top: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: 4,
-  },
-  tr: {
-    top: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
-    borderTopRightRadius: 4,
-  },
-  bl: {
-    bottom: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: 4,
-  },
-  br: {
-    bottom: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    borderBottomRightRadius: 4,
-  },
+  tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 4 },
+  tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 4 },
+  bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 4 },
+  br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 4 },
   scanLine: {
     position: "absolute",
     top: 4,
@@ -890,43 +862,45 @@ const ss = StyleSheet.create({
     right: 12,
     height: 2,
     borderRadius: 1,
-    backgroundColor: C.primaryLight,
-    shadowColor: C.primaryLight,
+    backgroundColor: "#93D056",
+    shadowColor: "#93D056",
     shadowOpacity: 0.9,
     shadowRadius: 4,
   },
 
-  // Analyzing
+  // ── Analyzing overlay ──
+  analyzingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.45)",
+  },
   analyzingBox: {
     width: "78%",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 22,
+    paddingVertical: 28,
     borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    overflow: "hidden",
-    gap: 10,
+    backgroundColor: "#fff",
+    gap: 12,
   },
   analyzingPulse: {
     position: "absolute",
     width: 150,
     height: 150,
     borderRadius: 75,
-    backgroundColor: "rgba(22,170,22,0.22)",
+    backgroundColor: PURPLE_LIGHT,
   },
-  analyzingTxt: {
-    color: "#fff",
-    fontSize: isSmall ? 13 : 15,
-    textAlign: "center",
-  },
+  analyzingTxt: { color: "#333", fontSize: isSmall ? 13 : 15, textAlign: "center" },
 
-  // Instructions
-  instructions: {
+  // ── Instructions ──
+  instructWrap: {
     position: "absolute",
     bottom: isSmall ? 32 : 52,
+    left: 0,
+    right: 0,
     alignItems: "center",
     paddingHorizontal: 20,
-    width: "100%",
   },
   instructTitle: {
     color: "#fff",
@@ -941,18 +915,20 @@ const ss = StyleSheet.create({
     textAlign: "center",
   },
   captureBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: C.primaryLight,
     borderRadius: 18,
-    paddingHorizontal: isSmall ? 24 : 32,
-    paddingVertical: isSmall ? 13 : 15,
-    shadowColor: C.primaryLight,
+    overflow: "hidden",
+    shadowColor: "#35A329",
     shadowOpacity: 0.5,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: 6,
+  },
+  captureBtnInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: isSmall ? 24 : 32,
+    paddingVertical: isSmall ? 13 : 15,
   },
   captureBtnTxt: { color: "#fff", fontSize: isSmall ? 15 : 17 },
   inlineError: {
@@ -967,30 +943,30 @@ const ss = StyleSheet.create({
   },
   inlineErrorTxt: { color: "#fee2e2", fontSize: 12, textAlign: "center" },
 
-  // Results sheet
-  resultsSheet: {
+  // ── Bottom sheet ──
+  sheet: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: C.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingTop: 10,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingHorizontal: isSmall ? 16 : 20,
-    paddingBottom: Platform.OS === "ios" ? 34 : 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
     maxHeight: height * 0.8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.14,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
-    elevation: 14,
+    elevation: 16,
   },
   sheetHandle: {
     width: 44,
     height: 4,
     borderRadius: 2,
-    backgroundColor: C.border,
+    backgroundColor: "#E5E7EB",
     alignSelf: "center",
     marginBottom: 16,
   },
@@ -1000,19 +976,20 @@ const ss = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  sheetTitle: { fontSize: isSmall ? 18 : 21, color: C.text },
-  sheetSub: { fontSize: 12, color: C.textMuted, marginTop: 2 },
-  completeBadge: {
+  sheetTitle: { fontSize: isSmall ? 18 : 21, color: "#111" },
+  sheetSub: { fontSize: 12, color: "#9CA3AF", marginTop: 2 },
+  doneBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: C.primaryLight,
+    backgroundColor: "#35A329",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
   },
-  completeBadgeTxt: { color: "#fff", fontSize: 12 },
+  doneBadgeTxt: { color: "#fff", fontSize: 12 },
 
+  // ── Totals pills ──
   totalsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1030,87 +1007,126 @@ const ss = StyleSheet.create({
   },
   sheetErrorTxt: { color: "#B91C1C", fontSize: 12, textAlign: "center" },
 
-  resultsScroll: { gap: 10, paddingBottom: 12 },
+  // ── Divider ──
+  divider: { height: 1, backgroundColor: "#F0F0F0", marginBottom: 12 },
 
-  // Result card
+  // ── Meal tabs ──
+  mealTabs: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  mealTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+  },
+  mealTabActive: { backgroundColor: PURPLE },
+  mealTabTxt: { fontSize: 12, color: "#888" },
+  mealTabTxtActive: { color: "#fff" },
+
+  // ── Scroll content ──
+  resultsScroll: { gap: 10, paddingBottom: 8 },
+
+  // ── Food result card ──
   resultCard: {
-    backgroundColor: "#1A2B1E",
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: isSmall ? 12 : 14,
     borderWidth: 1,
-    borderColor: "rgba(22,170,22,0.2)",
+    borderColor: "#F0F0F0",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
-  resultHeader: {
+  foodRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 10,
-    gap: 8,
-  },
-  resultName: {
-    color: "#fff",
-    fontSize: isSmall ? 15 : 17,
-    marginBottom: 2,
-    flexShrink: 1,
-  },
-  resultServing: { color: "rgba(255,255,255,0.55)", fontSize: 12 },
-  confBadge: {
-    backgroundColor: "rgba(22,170,22,0.2)",
-    borderRadius: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  confTxt: { color: "#34D070", fontSize: 11 },
-
-  macroRingRow: {
-    flexDirection: "row",
-    justifyContent: "space-around",
+    gap: 12,
     marginBottom: 12,
   },
-  cardAddBtn: {
-    flexDirection: "row",
+  foodIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: PURPLE_LIGHT,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    backgroundColor: C.primaryLight,
-    borderRadius: 10,
-    paddingVertical: 9,
+    flexShrink: 0,
   },
-  cardAddBtnDone: { backgroundColor: "#374151" },
-  cardAddBtnTxt: { color: "#fff", fontSize: 13 },
+  foodMeta: { flex: 1 },
+  foodName: { fontSize: isSmall ? 14 : 16, color: "#111", marginBottom: 4 },
+  foodSubRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  foodServing: { fontSize: 12, color: "#888" },
+  confBadge: {
+    backgroundColor: "#F0FDF4",
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  confTxt: { color: "#166534", fontSize: 10 },
 
-  // Circular macro
-  circWrap: { alignItems: "center", justifyContent: "center", width: 52 },
-  circInner: {
+  // ── Calorie ring ──
+  ringWrap: {
+    width: 72,
+    height: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  ringInner: {
     position: "absolute",
     alignItems: "center",
     justifyContent: "center",
-    top: 9,
-    left: 0,
-    right: 0,
   },
-  circVal: { color: "#fff", fontSize: 11, lineHeight: 13 },
-  circLabel: { color: "#A0A0A0", fontSize: 8, lineHeight: 10 },
-  circUnit: { marginTop: 4, color: "#9ca3af", fontSize: 9 },
+  ringCal: { fontSize: 16, color: "#111" },
+  ringCalLabel: { fontSize: 10, color: "#888" },
 
+  // ── Macro row ──
+  macroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FAFAFA",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginBottom: 12,
+  },
+  macroCol: { flex: 1, alignItems: "center" },
+  macroVal: { fontSize: 14 },
+  macroLbl: { fontSize: 11, marginTop: 2 },
+  macroDivider: { width: 1, height: 26, backgroundColor: "#E5E7EB" },
+
+  // ── Add button ──
+  addBtnWrap: { borderRadius: 12, overflow: "hidden" },
+  addBtn: { paddingVertical: 11, alignItems: "center" },
+  addBtnInner: { flexDirection: "row", alignItems: "center", gap: 6 },
+  addBtnTxt: { color: "#fff", fontSize: 13 },
+
+  // ── No results ──
   noResults: { alignItems: "center", paddingVertical: 28, gap: 10 },
-  noResultsTxt: { fontSize: 13, color: C.textMuted, textAlign: "center" },
+  noResultsTxt: { fontSize: 13, color: "#9CA3AF", textAlign: "center" },
 
-  // Action row
-  sheetActions: { flexDirection: "row", gap: 10, marginTop: 12 },
+  // ── Action row ──
+  actionRow: { flexDirection: "row", gap: 10, marginTop: 10 },
   scanAgainBtn: {
     flex: 1,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: C.primaryLight,
-    backgroundColor: "#F0FDF4",
+    borderColor: PURPLE,
     paddingVertical: isSmall ? 13 : 15,
     alignItems: "center",
     justifyContent: "center",
   },
-  scanAgainTxt: { color: C.primary, fontSize: isSmall ? 14 : 15 },
-  saveContinueWrap: { flex: 1 },
+  scanAgainTxt: { color: PURPLE, fontSize: isSmall ? 14 : 15 },
+  saveContinueWrap: { flex: 1, borderRadius: 14, overflow: "hidden" },
   saveContinueBtn: {
-    borderRadius: 14,
     paddingVertical: isSmall ? 13 : 15,
     alignItems: "center",
   },

@@ -1,7 +1,7 @@
 /**
- * BarcodeScanner.jsx — Premium redesign
- * Branded permission screen, animated scan line, cleaner result card,
- * proper bottom safe-area, consistent token system.
+ * BarcodeScanner.jsx — Redesigned
+ * White header with purple text, animated scan line,
+ * white bottom sheet result modal matching reference screenshots.
  * All logic, navigation, and AsyncStorage usage preserved exactly.
  */
 
@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   View,
   Dimensions,
+  StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Camera from "expo-camera";
@@ -23,14 +24,32 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Text } from "../components/TextWrapper";
 import { C } from "../theme";
-import { DEFAULT_MEALS, MEAL_TYPES, MAX_RECENT_FOODS, MAX_BARCODE_CACHE, normalizeMealType, toNumber, parseJsonSafe, getTodayKey, STORAGE_KEYS, createEmptyLog, ensureMealsShape, recalculateLogTotals, readCameraPermission, requestCameraPermissionApi } from "../utils";
+import {
+  MAX_RECENT_FOODS,
+  MAX_BARCODE_CACHE,
+  normalizeMealType,
+  toNumber,
+  parseJsonSafe,
+  getTodayKey,
+  STORAGE_KEYS,
+  createEmptyLog,
+  ensureMealsShape,
+  recalculateLogTotals,
+  readCameraPermission,
+  requestCameraPermissionApi,
+  MEAL_TYPES,
+} from "../utils";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 // ── Design tokens ──────────────────────────────
+const PURPLE = "#553FB5";
+const PURPLE_LIGHT = "#EEE9FF";
+const GREEN_GRAD = ["#93D056", "#35A329"];
+const STATUS_BAR_H =
+  Platform.OS === "ios" ? 56 : (StatusBar.currentHeight ?? 38) + 8;
 
-// ── Constants ─────────────────────────────────
-
+// ── Helpers (unchanged) ────────────────────────
 const clampPositive = (v) => {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : null;
@@ -88,11 +107,7 @@ const calculateNutrient = ({
   return fg ?? fm ?? 0;
 };
 
-const calculateCalories = ({
-  nutriments,
-  servingAmount,
-  preferPer100ml = false,
-}) => {
+const calculateCalories = ({ nutriments, servingAmount, preferPer100ml = false }) => {
   const ks = firstValidNumber(nutriments, ["energy-kcal_serving"]);
   if (ks !== null) return ks;
   const kjs = firstValidNumber(nutriments, ["energy_serving"]);
@@ -137,11 +152,6 @@ const getCachedProduct = async (code) => {
   return c.find((e) => String(e?.code) === String(code))?.product || null;
 };
 
-
-
-
-
-
 const buildFoodFromOpenFoodFacts = (barcode, product) => {
   const nutriments = product?.nutriments || {};
   const servingText = String(product?.serving_size || "").trim();
@@ -157,30 +167,23 @@ const buildFoodFromOpenFoodFacts = (barcode, product) => {
   const preferPer100ml =
     servingAmount?.basis === "ml" || (!servingAmount && hasPer100ml);
   const serving = servingText || (preferPer100ml ? "100 ml" : "100 g");
-  const calories = calculateCalories({
-    nutriments,
-    servingAmount,
-    preferPer100ml,
-  });
+  const calories = calculateCalories({ nutriments, servingAmount, preferPer100ml });
   const protein = calculateNutrient({
-    nutriments,
-    servingAmount,
+    nutriments, servingAmount,
     servingKeys: ["proteins_serving"],
     per100gKeys: ["proteins_100g"],
     per100mlKeys: ["proteins_100ml"],
     preferPer100ml,
   });
   const carbs = calculateNutrient({
-    nutriments,
-    servingAmount,
+    nutriments, servingAmount,
     servingKeys: ["carbohydrates_serving"],
     per100gKeys: ["carbohydrates_100g"],
     per100mlKeys: ["carbohydrates_100ml"],
     preferPer100ml,
   });
   const fat = calculateNutrient({
-    nutriments,
-    servingAmount,
+    nutriments, servingAmount,
     servingKeys: ["fat_serving"],
     per100gKeys: ["fat_100g"],
     per100mlKeys: ["fat_100ml"],
@@ -202,20 +205,94 @@ const buildFoodFromOpenFoodFacts = (barcode, product) => {
   };
 };
 
-// ── Macro pill ─────────────────────────────────
-const Pill = ({ label, value, bg, fg }) => (
-  <View style={[bs.pill, { backgroundColor: bg }]}>
-    <Text weight="600" style={[bs.pillTxt, { color: fg }]}>
-      {label}: {value}
-    </Text>
+// ── Calorie ring ───────────────────────────────
+const CalRing = ({ calories }) => {
+  const size = 72;
+  const stroke = 6;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  // ring always full for barcode (exact nutrition known)
+  return (
+    <View style={bs.ringWrap}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="#F3F0FF" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2} cy={size / 2} r={r}
+          stroke="url(#ringGrad)" strokeWidth={stroke}
+          strokeDasharray={circ} strokeDashoffset={circ * 0.15}
+          strokeLinecap="round" fill="none"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+        <defs>
+          <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#93D056" />
+            <stop offset="100%" stopColor="#35A329" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <View style={bs.ringInner}>
+        <Text weight="800" style={bs.ringCal}>{Math.round(calories)}</Text>
+        <Text style={bs.ringCalLabel}>Cal</Text>
+      </View>
+    </View>
+  );
+};
+
+// Use RN SVG instead of inline svg
+import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from "react-native-svg";
+
+const CalorieRing = ({ calories }) => {
+  const size = 72;
+  const stroke = 6;
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * 0.05; // almost full
+
+  return (
+    <View style={bs.ringWrap}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <Defs>
+          <SvgLinearGradient id="rg" x1="0" y1="0" x2="1" y2="0">
+            <Stop offset="0%" stopColor="#93D056" />
+            <Stop offset="100%" stopColor="#35A329" />
+          </SvgLinearGradient>
+        </Defs>
+        <Circle
+          cx={size / 2} cy={size / 2} r={r}
+          stroke="#F3F0FF" strokeWidth={stroke} fill="none"
+        />
+        <Circle
+          cx={size / 2} cy={size / 2} r={r}
+          stroke="url(#rg)" strokeWidth={stroke}
+          strokeDasharray={circ} strokeDashoffset={offset}
+          strokeLinecap="round" fill="none"
+          rotation="-90" origin={`${size / 2},${size / 2}`}
+        />
+      </Svg>
+      <View style={bs.ringInner}>
+        <Text weight="800" style={bs.ringCal}>{Math.round(calories)}</Text>
+        <Text style={bs.ringCalLabel}>Cal</Text>
+      </View>
+    </View>
+  );
+};
+
+// ── Macro label ────────────────────────────────
+const MacroLabel = ({ label, value, color }) => (
+  <View style={bs.macroCol}>
+    <Text weight="700" style={[bs.macroVal, { color }]}>{value}</Text>
+    <Text style={[bs.macroLbl, { color }]}>{label}</Text>
   </View>
 );
+
+// ── Meal type tab ──────────────────────────────
+const MEAL_TABS = ["Breakfast", "Lunch", "Snacks", "Dinner"];
 
 // ─────────────────────────────────────────────────────
 const BarcodeScanner = () => {
   const navigation = useNavigation();
   const route = useRoute();
-  const mealType = normalizeMealType(route.params?.mealType);
+  const initialMeal = normalizeMealType(route.params?.mealType);
 
   const [cameraPermission, setCameraPermission] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -223,6 +300,13 @@ const BarcodeScanner = () => {
   const [scanSuccess, setScanSuccess] = useState("");
   const [scannedFood, setScannedFood] = useState(null);
   const [isAdded, setIsAdded] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [selectedMeal, setSelectedMeal] = useState(
+    MEAL_TABS.find((t) => t.toLowerCase() === initialMeal?.toLowerCase()) || "Breakfast"
+  );
+
+  // Sheet slide-up animation
+  const sheetAnim = useRef(new Animated.Value(300)).current;
 
   // Animated scan line
   const lineAnim = useRef(new Animated.Value(0)).current;
@@ -230,21 +314,27 @@ const BarcodeScanner = () => {
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(lineAnim, {
-          toValue: 1,
-          duration: 1800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(lineAnim, {
-          toValue: 0,
-          duration: 1800,
-          useNativeDriver: true,
-        }),
-      ]),
+        Animated.timing(lineAnim, { toValue: 1, duration: 1800, useNativeDriver: true }),
+        Animated.timing(lineAnim, { toValue: 0, duration: 1800, useNativeDriver: true }),
+      ])
     );
     loop.start();
     return () => loop.stop();
   }, []);
+
+  // Slide sheet up when food arrives
+  useEffect(() => {
+    if (scannedFood) {
+      Animated.spring(sheetAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 4,
+        speed: 14,
+      }).start();
+    } else {
+      sheetAnim.setValue(300);
+    }
+  }, [scannedFood]);
 
   const hasPermission = cameraPermission?.granted ?? null;
 
@@ -262,9 +352,7 @@ const BarcodeScanner = () => {
       }
     };
     ask();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, []);
 
   const requestCameraPermission = async () => {
@@ -278,25 +366,18 @@ const BarcodeScanner = () => {
     }
   };
 
-  const addToTray = async (food, quantity = 1) => {
+  const addToTray = async (food, qty = 1) => {
+    // Use capitalized key to match Nutrition.jsx's mealTray["Breakfast"] etc.
+    const mealType = selectedMeal;
     const key = getTodayKey();
     const raw = await AsyncStorage.getItem(key);
-    const log = raw
-      ? parseJsonSafe(raw, createEmptyLog(key))
-      : createEmptyLog(key);
+    const log = raw ? parseJsonSafe(raw, createEmptyLog(key)) : createEmptyLog(key);
     ensureMealsShape(log);
-    const items = Array.isArray(log.meals[mealType])
-      ? [...log.meals[mealType]]
-      : [];
-    const qty = Math.max(1, toNumber(quantity, 1));
-    const nm = String(food.name || "")
-      .trim()
-      .toLowerCase();
+    const items = Array.isArray(log.meals[mealType]) ? [...log.meals[mealType]] : [];
+    const q = Math.max(1, toNumber(qty, 1));
+    const nm = String(food.name || "").trim().toLowerCase();
     const idx = items.findIndex(
-      (x) =>
-        String(x.name || "")
-          .trim()
-          .toLowerCase() === nm,
+      (x) => String(x.name || "").trim().toLowerCase() === nm
     );
     if (idx >= 0) {
       const ex = items[idx];
@@ -307,10 +388,8 @@ const BarcodeScanner = () => {
         protein: toNumber(food.protein, ex.protein),
         carbs: toNumber(food.carbs, ex.carbs),
         fat: toNumber(food.fat, ex.fat),
-        quantity: toNumber(ex.quantity, 1) + qty,
-        totalCalories:
-          toNumber(food.calories, ex.calories) *
-          (toNumber(ex.quantity, 1) + qty),
+        quantity: toNumber(ex.quantity, 1) + q,
+        totalCalories: toNumber(food.calories, ex.calories) * (toNumber(ex.quantity, 1) + q),
         addedAt: new Date().toISOString(),
         mealType,
       };
@@ -323,8 +402,8 @@ const BarcodeScanner = () => {
         protein: toNumber(food.protein),
         carbs: toNumber(food.carbs),
         fat: toNumber(food.fat),
-        quantity: qty,
-        totalCalories: toNumber(food.calories) * qty,
+        quantity: q,
+        totalCalories: toNumber(food.calories) * q,
         addedAt: new Date().toISOString(),
         mealType,
         barcode: food.barcode,
@@ -335,12 +414,8 @@ const BarcodeScanner = () => {
     await AsyncStorage.setItem(key, JSON.stringify(log));
     // update recent
     const rr = await AsyncStorage.getItem(STORAGE_KEYS.RECENT_FOODS);
-    const rarr = Array.isArray(parseJsonSafe(rr, []))
-      ? parseJsonSafe(rr, [])
-      : [];
-    const rk = String(food.name || "")
-      .trim()
-      .toLowerCase();
+    const rarr = Array.isArray(parseJsonSafe(rr, [])) ? parseJsonSafe(rr, []) : [];
+    const rk = String(food.name || "").trim().toLowerCase();
     const ri = {
       id: food.id || `${Date.now()}_${rk}`,
       name: food.name,
@@ -349,24 +424,18 @@ const BarcodeScanner = () => {
       protein: toNumber(food.protein),
       carbs: toNumber(food.carbs),
       fat: toNumber(food.fat),
-      servings: qty,
-      totalCalories: toNumber(food.calories) * qty,
+      servings: q,
+      totalCalories: toNumber(food.calories) * q,
       addedAt: new Date().toISOString(),
       barcode: food.barcode,
     };
     await AsyncStorage.setItem(
       STORAGE_KEYS.RECENT_FOODS,
       JSON.stringify(
-        [
-          ri,
-          ...rarr.filter(
-            (x) =>
-              String(x?.name || "")
-                .trim()
-                .toLowerCase() !== rk,
-          ),
-        ].slice(0, MAX_RECENT_FOODS),
-      ),
+        [ri, ...rarr.filter((x) => String(x?.name || "").trim().toLowerCase() !== rk)].slice(
+          0, MAX_RECENT_FOODS
+        )
+      )
     );
   };
 
@@ -377,11 +446,12 @@ const BarcodeScanner = () => {
     setScanError("");
     setScanSuccess("");
     setIsAdded(false);
+    setQuantity(1);
     try {
       let product = await getCachedProduct(code);
       if (!product) {
         const res = await fetch(
-          `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,generic_name,brands,serving_size,nutriments`,
+          `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,generic_name,brands,serving_size,nutriments`
         );
         if (!res.ok) throw new Error("Could not fetch product details.");
         const payload = await res.json();
@@ -401,9 +471,13 @@ const BarcodeScanner = () => {
   const handleAddToTray = async () => {
     if (!scannedFood || isAdded) return;
     try {
-      await addToTray(scannedFood, 1);
+      await addToTray(scannedFood, quantity);
       setIsAdded(true);
-      setScanSuccess(`${scannedFood.name} added to ${mealType}.`);
+      setScanSuccess(`${scannedFood.name} added to ${selectedMeal}.`);
+      const todayBarcodeKey = `barcode_scan_count_${getTodayKey()}`;
+      const prev = await AsyncStorage.getItem(todayBarcodeKey);
+      await AsyncStorage.setItem(todayBarcodeKey, String((parseInt(prev) || 0) + 1));
+      await AsyncStorage.setItem(STORAGE_KEYS.LAST_BARCODE, scannedFood.name);
     } catch {
       setScanError("Could not save item to tray. Please try again.");
     }
@@ -415,6 +489,7 @@ const BarcodeScanner = () => {
     setScanError("");
     setScanSuccess("");
     setIsProcessing(false);
+    setQuantity(1);
   };
 
   // ── Permission: loading ───────────────────────
@@ -422,19 +497,11 @@ const BarcodeScanner = () => {
     return (
       <View style={bs.centered}>
         <View style={bs.permIconWrap}>
-          <Ionicons name="barcode-outline" size={40} color={C.primaryLight} />
+          <Ionicons name="barcode-outline" size={40} color={PURPLE} />
         </View>
-        <ActivityIndicator
-          size="large"
-          color={C.primaryLight}
-          style={{ marginBottom: 14 }}
-        />
-        <Text weight="700" style={bs.centeredTitle}>
-          Camera Access
-        </Text>
-        <Text style={bs.centeredSub}>
-          Requesting permission to use your camera...
-        </Text>
+        <ActivityIndicator size="large" color={PURPLE} style={{ marginBottom: 14 }} />
+        <Text weight="700" style={bs.centeredTitle}>Camera Access</Text>
+        <Text style={bs.centeredSub}>Requesting permission to use your camera...</Text>
       </View>
     );
   }
@@ -442,367 +509,361 @@ const BarcodeScanner = () => {
   // ── Permission: denied ────────────────────────
   if (hasPermission === false) {
     return (
-      <LinearGradient colors={["#0D1F16", "#1a2e1f"]} style={bs.centered}>
-        <View
-          style={[bs.permIconWrap, { backgroundColor: "rgba(229,57,53,0.15)" }]}
-        >
+      <View style={bs.centeredDenied}>
+        <View style={[bs.permIconWrap, { backgroundColor: "rgba(229,57,53,0.1)" }]}>
           <Feather name="camera-off" size={36} color="#E53935" />
         </View>
-        <Text weight="700" style={bs.centeredTitle}>
-          Camera Blocked
-        </Text>
-        <Text style={bs.centeredSub}>
+        <Text weight="700" style={[bs.centeredTitle, { color: "#111" }]}>Camera Blocked</Text>
+        <Text style={[bs.centeredSub, { color: "#666" }]}>
           Enable camera access to scan barcodes.
         </Text>
         <TouchableOpacity
           style={bs.permBtn}
-          onPress={
-            cameraPermission?.canAskAgain
-              ? requestCameraPermission
-              : () => Linking.openSettings()
-          }
+          onPress={cameraPermission?.canAskAgain ? requestCameraPermission : () => Linking.openSettings()}
           activeOpacity={0.85}
         >
-          <LinearGradient
-            colors={[C.primaryLight, C.primaryDark]}
-            style={bs.permBtnInner}
-          >
+          <LinearGradient colors={GREEN_GRAD} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={bs.permBtnInner}>
             <Text weight="700" style={bs.permBtnTxt}>
-              {cameraPermission?.canAskAgain
-                ? "Allow Camera Access"
-                : "Open App Settings"}
+              {cameraPermission?.canAskAgain ? "Allow Camera Access" : "Open App Settings"}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
-      </LinearGradient>
+      </View>
     );
   }
 
   // ── Main scanner ──────────────────────────────
   return (
     <View style={bs.container}>
+      <StatusBar backgroundColor="#fff" barStyle="dark-content" />
+
+      {/* ── White header ── */}
+      <View style={bs.header}>
+        <TouchableOpacity style={bs.backBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+          <Feather name="arrow-left" size={20} color={PURPLE} />
+        </TouchableOpacity>
+        <View>
+          <Text weight="700" style={bs.headerTitle}>Scan Barcode</Text>
+          <Text style={bs.headerSub}>
+            Scan the barcode on packaged food to instantly view nutrition details.
+          </Text>
+        </View>
+      </View>
+
+      {/* ── Camera ── */}
       <Camera.CameraView
-        style={StyleSheet.absoluteFill}
+        style={bs.camera}
         facing="back"
-        onBarcodeScanned={
-          scannedFood || isProcessing ? undefined : handleBarcodeScanned
-        }
+        onBarcodeScanned={scannedFood || isProcessing ? undefined : handleBarcodeScanned}
         barcodeScannerSettings={{
-          barcodeTypes: [
-            "ean13",
-            "ean8",
-            "upc_a",
-            "upc_e",
-            "qr",
-            "itf14",
-            "codabar",
-            "code128",
-            "code39",
-            "code93",
-          ],
+          barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "qr", "itf14", "codabar", "code128", "code39", "code93"],
         }}
       />
 
-      {/* Dark gradient header */}
-      <LinearGradient
-        colors={["rgba(0,0,0,0.85)", "transparent"]}
-        style={bs.header}
-      >
-        <TouchableOpacity
-          style={bs.iconBtn}
-          onPress={() => navigation.goBack()}
-        >
-          <Feather name="arrow-left" size={20} color="#fff" />
-        </TouchableOpacity>
-        <Text weight="700" style={bs.headerTitle}>
-          Scan for {mealType}
-        </Text>
-        <View style={{ width: 44 }} />
-      </LinearGradient>
-
-      {/* Overlay */}
-      <View style={bs.overlay}>
-        {/* Scan window */}
-        <View style={bs.scanWindow}>
-          {/* Corner brackets */}
-          {[bs.tl, bs.tr, bs.bl, bs.br].map((cs, i) => (
-            <View key={i} style={[bs.corner, cs]} />
-          ))}
-          {/* Animated scan line */}
-          <Animated.View
-            style={[
-              bs.scanLine,
-              {
-                transform: [
-                  {
-                    translateY: lineAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, 148],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-        </View>
-
-        {/* Instruction label above card */}
-        {!scannedFood && !isProcessing && (
-          <View style={bs.instructLabel}>
-            <Text weight="500" style={bs.instructLabelTxt}>
-              Align barcode within the frame
-            </Text>
+      {/* ── Scan guide overlay ── */}
+      <View style={bs.guideOverlay} pointerEvents="none">
+        {/* dark top mask */}
+        <View style={bs.maskTop} />
+        <View style={bs.guideRow}>
+          <View style={bs.maskSide} />
+          {/* scan window */}
+          <View style={bs.scanWindow}>
+            {[bs.tl, bs.tr, bs.bl, bs.br].map((cs, i) => (
+              <View key={i} style={[bs.corner, cs]} />
+            ))}
+            <Animated.View
+              style={[
+                bs.scanLine,
+                {
+                  transform: [
+                    {
+                      translateY: lineAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 148],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
           </View>
-        )}
+          <View style={bs.maskSide} />
+        </View>
+        <View style={bs.maskBottom} />
+      </View>
 
-        {/* Results card */}
-        <View style={bs.card}>
-          {/* Processing */}
-          {isProcessing && (
-            <View style={bs.cardRow}>
-              <ActivityIndicator size="small" color={C.primaryLight} />
-              <Text weight="500" style={bs.lookupTxt}>
-                Looking up product...
-              </Text>
+      {/* ── Processing indicator ── */}
+      {isProcessing && (
+        <View style={bs.processingBadge}>
+          <ActivityIndicator size="small" color={PURPLE} />
+          <Text weight="600" style={bs.processingTxt}>Looking up product...</Text>
+        </View>
+      )}
+
+      {/* ── Instruction label ── */}
+      {!scannedFood && !isProcessing && !scanError && (
+        <View style={bs.instructWrap} pointerEvents="none">
+          <Text weight="500" style={bs.instructTxt}>Align barcode within the frame</Text>
+        </View>
+      )}
+
+      {/* ── Error badge ── */}
+      {scanError && !scannedFood && (
+        <View style={bs.errorBadge}>
+          <Text style={bs.errorBadgeTxt}>{scanError}</Text>
+          <TouchableOpacity style={bs.retryBtn} onPress={resetScanner}>
+            <Ionicons name="refresh" size={14} color="#fff" />
+            <Text weight="600" style={bs.retryTxt}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* ── Result bottom sheet ── */}
+      {scannedFood && (
+        <Animated.View
+          style={[bs.sheet, { transform: [{ translateY: sheetAnim }] }]}
+        >
+          {/* handle */}
+          <View style={bs.sheetHandle} />
+
+          {/* Food row: image placeholder + name + ring */}
+          <View style={bs.foodRow}>
+            {/* Food icon placeholder */}
+            <View style={bs.foodIcon}>
+              <Ionicons name="fast-food-outline" size={28} color={PURPLE} />
             </View>
-          )}
 
-          {/* Scanned food */}
-          {scannedFood && (
-            <View style={bs.foodResult}>
-              <View style={bs.foodResultHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text weight="700" style={bs.foodResultName}>
-                    {scannedFood.name}
-                  </Text>
-                  {scannedFood.brand ? (
-                    <Text style={bs.foodResultBrand}>{scannedFood.brand}</Text>
-                  ) : null}
-                  <Text style={bs.foodResultServing}>
-                    {scannedFood.serving}
-                  </Text>
+            {/* Name + quantity */}
+            <View style={bs.foodMeta}>
+              <Text weight="700" style={bs.foodName} numberOfLines={2}>
+                {scannedFood.name}
+              </Text>
+              {scannedFood.brand ? (
+                <Text style={bs.foodBrand}>{scannedFood.brand}</Text>
+              ) : null}
+              {/* Quantity row */}
+              <View style={bs.qtyRow}>
+                <Text style={bs.qtyLabel}>Quantity</Text>
+                <View style={bs.qtyStepper}>
+                  <TouchableOpacity
+                    style={bs.qtyBtn}
+                    onPress={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={isAdded}
+                  >
+                    <Feather name="minus" size={14} color={isAdded ? "#ccc" : PURPLE} />
+                  </TouchableOpacity>
+                  <Text weight="700" style={bs.qtyVal}>{quantity}</Text>
+                  <TouchableOpacity
+                    style={bs.qtyBtn}
+                    onPress={() => setQuantity((q) => q + 1)}
+                    disabled={isAdded}
+                  >
+                    <Feather name="plus" size={14} color={isAdded ? "#ccc" : PURPLE} />
+                  </TouchableOpacity>
                 </View>
-                <View style={bs.calBubble}>
-                  <Text weight="800" style={bs.calBubbleVal}>
-                    {Math.round(toNumber(scannedFood.calories))}
-                  </Text>
-                  <Text style={bs.calBubbleUnit}>Cal</Text>
+                <View style={bs.servingBadge}>
+                  <Text style={bs.servingBadgeTxt}>{scannedFood.serving}</Text>
+                  <Feather name="check" size={10} color="#35A329" />
                 </View>
               </View>
-              <View style={bs.pillRow}>
-                <Pill
-                  label="P"
-                  value={`${toNumber(scannedFood.protein).toFixed(1)}g`}
-                  bg="#DBEAFE"
-                  fg={C.blue}
-                />
-                <Pill
-                  label="C"
-                  value={`${toNumber(scannedFood.carbs).toFixed(1)}g`}
-                  bg="#D1FAE5"
-                  fg={C.emerald}
-                />
-                <Pill
-                  label="F"
-                  value={`${toNumber(scannedFood.fat).toFixed(1)}g`}
-                  bg="#FEE0D1"
-                  fg={C.orange}
-                />
-              </View>
+            </View>
+
+            {/* Calorie ring */}
+            <CalorieRing calories={toNumber(scannedFood.calories) * quantity} />
+          </View>
+
+          {/* Macro row */}
+          <View style={bs.macroRow}>
+            <MacroLabel
+              label="Protein"
+              value={`${(toNumber(scannedFood.protein) * quantity).toFixed(1)}g`}
+              color="#553FB5"
+            />
+            <View style={bs.macroDivider} />
+            <MacroLabel
+              label="Carbs"
+              value={`${(toNumber(scannedFood.carbs) * quantity).toFixed(1)}g`}
+              color="#35A329"
+            />
+            <View style={bs.macroDivider} />
+            <MacroLabel
+              label="Fats"
+              value={`${(toNumber(scannedFood.fat) * quantity).toFixed(1)}g`}
+              color="#F97316"
+            />
+          </View>
+
+          {/* Divider */}
+          <View style={bs.divider} />
+
+          {/* Meal type tabs */}
+          <View style={bs.mealTabs}>
+            {MEAL_TABS.map((tab) => (
               <TouchableOpacity
-                style={[bs.addToTrayBtn, isAdded && bs.addToTrayBtnDone]}
-                onPress={handleAddToTray}
-                disabled={isAdded}
-                activeOpacity={0.9}
+                key={tab}
+                style={[bs.mealTab, selectedMeal === tab && bs.mealTabActive]}
+                onPress={() => !isAdded && setSelectedMeal(tab)}
+                activeOpacity={0.75}
+              >
+                <Text
+                  weight={selectedMeal === tab ? "700" : "500"}
+                  style={[bs.mealTabTxt, selectedMeal === tab && bs.mealTabTxtActive]}
+                >
+                  {tab}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Success message */}
+          {scanSuccess ? (
+            <View style={bs.successBox}>
+              <Feather name="check-circle" size={14} color="#35A329" />
+              <Text weight="600" style={bs.successTxt}>{scanSuccess}</Text>
+            </View>
+          ) : null}
+
+          {/* Action buttons */}
+          <View style={bs.actionRow}>
+            <TouchableOpacity
+              style={bs.scanAnotherBtn}
+              onPress={resetScanner}
+              activeOpacity={0.85}
+            >
+              <Text weight="600" style={bs.scanAnotherTxt}>Scan Another</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={bs.addBtnWrap}
+              onPress={isAdded ? () => navigation.goBack() : handleAddToTray}
+              activeOpacity={0.88}
+            >
+              <LinearGradient
+                colors={isAdded ? ["#4CAF50", "#2E7D32"] : GREEN_GRAD}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={bs.addBtn}
               >
                 {isAdded ? (
-                  <>
+                  <View style={bs.addBtnInner}>
                     <Feather name="check" size={16} color="#fff" />
-                    <Text weight="700" style={bs.addToTrayTxt}>
-                      Added to {mealType}
-                    </Text>
-                  </>
+                    <Text weight="700" style={bs.addBtnTxt}>Done</Text>
+                  </View>
                 ) : (
-                  <Text weight="700" style={bs.addToTrayTxt}>
-                    Add to Tray
-                  </Text>
+                  <Text weight="700" style={bs.addBtnTxt}>+ Add</Text>
                 )}
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Success */}
-          {scanSuccess && !scanError && (
-            <View style={bs.successBox}>
-              <Feather name="check-circle" size={16} color="#059669" />
-              <Text weight="600" style={bs.successTxt}>
-                {scanSuccess}
-              </Text>
-            </View>
-          )}
-
-          {/* Error */}
-          {scanError && (
-            <View style={bs.errorBox}>
-              <Text style={bs.errorTxt}>{scanError}</Text>
-              <TouchableOpacity style={bs.retryBtn} onPress={resetScanner}>
-                <Ionicons name="refresh" size={14} color="#fff" />
-                <Text weight="600" style={bs.retryTxt}>
-                  Try Again
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Default hint */}
-          {!isProcessing && !scannedFood && !scanError && (
-            <Text style={bs.cardHint}>
-              We fetch nutrition details after a single scan
-            </Text>
-          )}
-
-          {/* Action row */}
-          {scannedFood && !scanError && (
-            <View style={bs.actionRow}>
-              <TouchableOpacity
-                style={bs.scanAnotherBtn}
-                onPress={resetScanner}
-              >
-                <Ionicons name="barcode-outline" size={15} color="#fff" />
-                <Text weight="600" style={bs.scanAnotherTxt}>
-                  Scan Another
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[bs.doneBtn, !isAdded && bs.doneBtnDisabled]}
-                onPress={() => navigation.goBack()}
-                disabled={!isAdded}
-              >
-                <Text weight="700" style={bs.doneBtnTxt}>
-                  Done
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 };
 
 export default BarcodeScanner;
 
-const GUIDE_W = width * 0.88;
+// ── Styles ─────────────────────────────────────────
+const GUIDE_W = width * 0.82;
 const GUIDE_H = 160;
 
 const bs = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
 
-  // Permission screens
+  // ── Permission screens ──
   centered: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0D1F16",
+    backgroundColor: "#fff",
+    paddingHorizontal: 28,
+  },
+  centeredDenied: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
     paddingHorizontal: 28,
   },
   permIconWrap: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "rgba(22,170,22,0.15)",
+    backgroundColor: PURPLE_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
   },
-  centeredTitle: { fontSize: 22, color: "#fff", marginBottom: 8 },
+  centeredTitle: { fontSize: 22, color: PURPLE, marginBottom: 8 },
   centeredSub: {
     fontSize: 14,
-    color: "rgba(255,255,255,0.65)",
+    color: "#888",
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 28,
     lineHeight: 20,
   },
   permBtn: { width: "100%", borderRadius: 14, overflow: "hidden" },
   permBtnInner: { paddingVertical: 14, alignItems: "center" },
   permBtnTxt: { color: "#fff", fontSize: 16 },
 
-  // Header
+  // ── Header ──
   header: {
-    position: "absolute",
-    top: 0,
-    width: "100%",
+    backgroundColor: "#fff",
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: Platform.OS === "ios" ? 52 : 32,
-    paddingHorizontal: 20,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === "ios" ? 56 : (StatusBar.currentHeight ?? 28) + 12,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
     zIndex: 10,
   },
-  iconBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.15)",
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { color: "#fff", fontSize: 17, textAlign: "center" },
+  headerTitle: { fontSize: 17, color: PURPLE },
+  headerSub: { fontSize: 12, color: PURPLE, marginTop: 2, opacity: 0.8 },
 
-  // Overlay
-  overlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
+  // ── Camera ──
+  camera: { flex: 1 },
+
+  // ── Guide overlay ──
+  guideOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    top: 0,
+    // push below header is handled by the camera being flex:1
   },
+  maskTop: { flex: 2, backgroundColor: "rgba(0,0,0,0.55)" },
+  maskBottom: { flex: 3, backgroundColor: "rgba(0,0,0,0.55)" },
+  guideRow: { flexDirection: "row", height: GUIDE_H },
+  maskSide: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
 
-  // Scan window
+  // ── Scan window ──
   scanWindow: {
     width: GUIDE_W,
     height: GUIDE_H,
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: "hidden",
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.3)",
+    borderColor: "rgba(255,255,255,0.25)",
     position: "relative",
-    marginBottom: 14,
   },
   corner: {
     position: "absolute",
     width: 22,
     height: 22,
     borderWidth: 3,
-    borderColor: C.primaryLight,
+    borderColor: "#fff",
   },
-  tl: {
-    top: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: 4,
-  },
-  tr: {
-    top: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
-    borderTopRightRadius: 4,
-  },
-  bl: {
-    bottom: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: 4,
-  },
-  br: {
-    bottom: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    borderBottomRightRadius: 4,
-  },
+  tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 4 },
+  tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 4 },
+  bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 4 },
+  br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 4 },
   scanLine: {
     position: "absolute",
     top: 4,
@@ -810,137 +871,229 @@ const bs = StyleSheet.create({
     right: 12,
     height: 2.5,
     borderRadius: 2,
-    backgroundColor: C.primaryLight,
-    shadowColor: C.primaryLight,
-    shadowOpacity: 0.8,
+    backgroundColor: "#93D056",
+    shadowColor: "#93D056",
+    shadowOpacity: 0.9,
     shadowRadius: 4,
   },
 
-  instructLabel: { marginBottom: 10 },
-  instructLabelTxt: { color: "rgba(255,255,255,0.75)", fontSize: 13 },
-
-  // Card
-  card: {
-    width: "100%",
+  // ── Instruction label ──
+  instructWrap: {
+    position: "absolute",
+    bottom: 220,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+  },
+  instructTxt: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 13,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: "rgba(10,10,10,0.82)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+  },
+
+  // ── Processing badge ──
+  processingBadge: {
+    position: "absolute",
+    bottom: 230,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#fff",
+    borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
+    paddingVertical: 9,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  cardHint: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 12,
-    textAlign: "center",
-  },
-  cardRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-  lookupTxt: { color: "#d1fae5", fontSize: 14 },
+  processingTxt: { color: PURPLE, fontSize: 14 },
 
-  // Food result
-  foodResult: { gap: 10 },
-  foodResultHeader: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
-  foodResultName: {
-    color: "#fff",
-    fontSize: 16,
-    marginBottom: 2,
-    flexShrink: 1,
-  },
-  foodResultBrand: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  foodResultServing: { color: "rgba(255,255,255,0.55)", fontSize: 12 },
-  calBubble: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "rgba(22,170,22,0.18)",
-    borderWidth: 2,
-    borderColor: C.primaryLight,
+  // ── Error badge ──
+  errorBadge: {
+    position: "absolute",
+    bottom: 60,
+    left: 24,
+    right: 24,
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
     alignItems: "center",
-    justifyContent: "center",
+    gap: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 8,
   },
-  calBubbleVal: { fontSize: 16, color: "#fff" },
-  calBubbleUnit: { fontSize: 10, color: "rgba(255,255,255,0.65)" },
-
-  // Pills
-  pillRow: { flexDirection: "row", gap: 8 },
-  pill: { flex: 1, paddingVertical: 6, borderRadius: 20, alignItems: "center" },
-  pillTxt: { fontSize: 12 },
-
-  addToTrayBtn: {
-    backgroundColor: C.primaryLight,
-    borderRadius: 12,
-    paddingVertical: 11,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-  },
-  addToTrayBtnDone: { backgroundColor: "#374151" },
-  addToTrayTxt: { color: "#fff", fontSize: 14 },
-
-  // Success / Error
-  successBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(5,150,105,0.2)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(52,211,153,0.5)",
-    padding: 10,
-  },
-  successTxt: { color: "#d1fae5", fontSize: 13, flex: 1 },
-  errorBox: {
-    backgroundColor: "rgba(220,38,38,0.2)",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(248,113,113,0.5)",
-    padding: 10,
-    gap: 8,
-  },
-  errorTxt: { color: "#fee2e2", fontSize: 12, textAlign: "center" },
+  errorBadgeTxt: { color: "#B91C1C", fontSize: 13, textAlign: "center" },
   retryBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    alignSelf: "center",
-    backgroundColor: "#1F2937",
+    backgroundColor: PURPLE,
     borderRadius: 10,
-    paddingVertical: 7,
-    paddingHorizontal: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   retryTxt: { color: "#fff", fontSize: 13 },
 
-  // Action row
-  actionRow: { flexDirection: "row", gap: 8 },
-  scanAnotherBtn: {
-    flex: 1,
+  // ── Bottom sheet ──
+  sheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  sheetHandle: {
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E5E7EB",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+
+  // ── Food row ──
+  foodRow: {
     flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14,
+  },
+  foodIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: PURPLE_LIGHT,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    backgroundColor: "#1F2937",
-    borderRadius: 12,
-    paddingVertical: 10,
+    flexShrink: 0,
   },
-  scanAnotherTxt: { color: "#fff", fontSize: 13 },
-  doneBtn: {
-    flex: 1,
-    backgroundColor: C.primaryLight,
-    borderRadius: 12,
-    paddingVertical: 10,
+  foodMeta: { flex: 1 },
+  foodName: { fontSize: 16, color: "#111", marginBottom: 2 },
+  foodBrand: { fontSize: 12, color: "#888", marginBottom: 6 },
+
+  // ── Quantity ──
+  qtyRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  qtyLabel: { fontSize: 13, color: "#555" },
+  qtyStepper: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 6,
+    backgroundColor: "#F5F3FF",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  doneBtnDisabled: { opacity: 0.45 },
-  doneBtnTxt: { color: "#fff", fontSize: 13 },
+  qtyBtn: { padding: 2 },
+  qtyVal: { fontSize: 14, color: PURPLE, minWidth: 18, textAlign: "center" },
+  servingBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  servingBadgeTxt: { fontSize: 10, color: "#166534" },
+
+  // ── Calorie ring ──
+  ringWrap: {
+    width: 72,
+    height: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  ringInner: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ringCal: { fontSize: 16, color: "#111" },
+  ringCalLabel: { fontSize: 10, color: "#888" },
+
+  // ── Macros ──
+  macroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FAFAFA",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    marginBottom: 14,
+  },
+  macroCol: { flex: 1, alignItems: "center" },
+  macroVal: { fontSize: 15 },
+  macroLbl: { fontSize: 11, marginTop: 2 },
+  macroDivider: { width: 1, height: 28, backgroundColor: "#E5E7EB" },
+
+  // ── Divider ──
+  divider: { height: 1, backgroundColor: "#F0F0F0", marginBottom: 14 },
+
+  // ── Meal tabs ──
+  mealTabs: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+  mealTab: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: "center",
+    backgroundColor: "#F5F5F5",
+  },
+  mealTabActive: { backgroundColor: PURPLE },
+  mealTabTxt: { fontSize: 12, color: "#888" },
+  mealTabTxtActive: { color: "#fff" },
+
+  // ── Success ──
+  successBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#F0FDF4",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  successTxt: { color: "#166534", fontSize: 13, flex: 1 },
+
+  // ── Action row ──
+  actionRow: { flexDirection: "row", gap: 10 },
+  scanAnotherBtn: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: PURPLE,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scanAnotherTxt: { color: PURPLE, fontSize: 15 },
+  addBtnWrap: { flex: 1, borderRadius: 14, overflow: "hidden" },
+  addBtn: { paddingVertical: 14, alignItems: "center" },
+  addBtnInner: { flexDirection: "row", alignItems: "center", gap: 6 },
+  addBtnTxt: { color: "#fff", fontSize: 15 },
 });

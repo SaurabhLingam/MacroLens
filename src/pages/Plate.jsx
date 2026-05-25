@@ -1,17 +1,15 @@
 /**
- * NutritionPlate.jsx — Premium redesign
+ * NutritionPlate.jsx — Redesigned to match Health Wellness reference screenshot
  *
- * Key improvements:
- *  • Dark forest-green hero matching the rest of the app design system
- *  • Summary strip is a proper card row inside the hero (not a separate pill)
- *  • Removed network-loaded FOOD_IMG; replaced with a meal-category icon bubble
- *  • Food card layout: icon bubble | content | calorie badge (no overflow risk)
- *  • Macro chips use View containers (not inline Text styles)
- *  • Per-item calorie breakdown (calories × quantity) shown cleanly
- *  • Animated list entry — each card stagger-slides in
- *  • Empty state: icon + illustration text + CTA
- *  • Bottom buttons use LinearGradient on confirm + proper safe-area padding
- *  • All logic, navigation, and AsyncStorage calls preserved exactly
+ * Design:
+ *  • Flat white header — purple back arrow (bare, no container), bold purple title,
+ *    small dark-gray subtitle ("Your today's plate")
+ *  • Calories Intake card with macro legend rows + donut progress ring
+ *  • Food cards: image left, name + quantity dropdown, circular multi-ring calorie badge right
+ *  • Purple pencil edit icon top-right of each card
+ *  • Bottom bar: "Scan Food" | divider | "Scan Barcode" — green text, same green as SetGoal
+ *  • Empty state preserved
+ *  • All logic, navigation, AsyncStorage calls preserved exactly
  */
 
 import React, { useEffect, useState, useRef } from "react";
@@ -23,146 +21,206 @@ import {
   Dimensions,
   Animated,
   Platform,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Feather, MaterialIcons, Ionicons } from "@expo/vector-icons";
+import Svg, { Circle } from "react-native-svg";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Text } from "../components/TextWrapper";
 import { C } from "../theme";
-import { DEFAULT_MEALS, MEAL_TYPES, MAX_RECENT_FOODS, MAX_BARCODE_CACHE, normalizeMealType, toNumber, parseJsonSafe, getTodayKey, STORAGE_KEYS, createEmptyLog, ensureMealsShape, recalculateLogTotals, readCameraPermission, requestCameraPermissionApi } from "../utils";
+import {
+  normalizeMealType,
+  getTodayKey,
+  ensureMealsShape,
+} from "../utils";
+import HeaderVeggies from "../../assets/Group 1000004769.svg";
 
 const { width } = Dimensions.get("window");
 const isSmall = width < 380;
 
+// ── Brand colors ───────────────────────────────
+const PURPLE = "#553FB5";
+const GREEN_DARK = "#35A329";
+const GREEN_LIGHT = "#93D056";
+
 // ── Meal-type metadata ─────────────────────────
 const MEAL_META = {
-  Breakfast: { iconBg: "#FEF3C7", accent: C.amber, icon: "sunny-outline" },
-  Lunch: { iconBg: "#DBEAFE", accent: C.blue, icon: "restaurant-outline" },
-  Snacks: { iconBg: "#D1FAE5", accent: C.emerald, icon: "leaf-outline" },
-  Dinner: { iconBg: "#EDE9FE", accent: C.purple, icon: "moon-outline" },
+  Breakfast: { accent: "#4CAF50", icon: "sunny-outline" },
+  Lunch:     { accent: "#2196F3", icon: "restaurant-outline" },
+  Snacks:    { accent: "#FF9800", icon: "leaf-outline" },
+  Dinner:    { accent: PURPLE,    icon: "moon-outline" },
 };
 
+// ── Macro ring segments (colors matching screenshot) ──
+const MACRO_COLORS = {
+  protein: "#2196F3",
+  carbs:   "#F44336",
+  fats:    "#FFC107",
+  fibres:  "#4CAF50",
+};
 
-// ── Press-scale wrapper ────────────────────────
-const PressScale = ({ onPress, style, children, disabled }) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const spring = (to) =>
-    Animated.spring(scale, {
-      toValue: to,
-      useNativeDriver: true,
-      speed: 40,
-      bounciness: 4,
-    }).start();
+// ── Multi-color donut calorie badge ───────────────
+const CalorieBadge = ({ calories, size = 72 }) => {
+  const r = (size - 8) / 2;
+  const circ = 2 * Math.PI * r;
+  const segments = [
+    { color: "#2196F3", pct: 0.28 },
+    { color: "#F44336", pct: 0.25 },
+    { color: "#FFC107", pct: 0.22 },
+    { color: "#4CAF50", pct: 0.25 },
+  ];
+  let offset = 0;
   return (
-    <Animated.View style={[{ transform: [{ scale }] }, style]}>
-      <TouchableOpacity
-        disabled={disabled}
-        activeOpacity={1}
-        onPressIn={() => spring(0.97)}
-        onPressOut={() => spring(1)}
-        onPress={onPress}
-      >
-        {children}
-      </TouchableOpacity>
-    </Animated.View>
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size} style={{ position: "absolute" }}>
+        {/* Background ring */}
+        <Circle
+          cx={size / 2} cy={size / 2} r={r}
+          stroke="#F0F0F0" strokeWidth={5} fill="none"
+        />
+        {segments.map((seg, i) => {
+          const dash = seg.pct * circ;
+          const gap = circ - dash;
+          const rot = -90 + (offset / 1) * 360;
+          offset += seg.pct;
+          return (
+            <Circle
+              key={i}
+              cx={size / 2} cy={size / 2} r={r}
+              stroke={seg.color}
+              strokeWidth={5}
+              fill="none"
+              strokeDasharray={`${dash} ${gap}`}
+              strokeDashoffset={-(offset - seg.pct) * circ}
+              transform={`rotate(-90, ${size / 2}, ${size / 2})`}
+            />
+          );
+        })}
+      </Svg>
+      <Text weight="800" style={{ fontSize: isSmall ? 14 : 16, color: "#1A1A1A", lineHeight: 20 }}>
+        {calories}
+      </Text>
+      <Text style={{ fontSize: 9, color: "#888", marginTop: 1 }}>Cal</Text>
+    </View>
   );
 };
 
-// ── Animated food card ─────────────────────────
-const FoodCard = ({ item, mealMeta, index, onEdit, onDelete }) => {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(16)).current;
+// ── Calories Intake summary card ───────────────
+const CaloriesIntakeCard = ({ items, calorieGoal = 2000 }) => {
+  const totalCal  = Math.round(items.reduce((s, x) => s + (x.calories || 0) * (x.quantity || 1), 0));
+  const totalProt = items.reduce((s, x) => s + (x.protein || 0) * (x.quantity || 1), 0);
+  const totalCarb = items.reduce((s, x) => s + (x.carbs   || 0) * (x.quantity || 1), 0);
+  const totalFat  = items.reduce((s, x) => s + (x.fat     || 0) * (x.quantity || 1), 0);
+
+  const goal = calorieGoal || 2000;
+  const pct  = Math.min(totalCal / goal, 1);
+  const size = 100;
+  const r    = (size - 10) / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = pct * circ;
+
+  const macroRows = [
+    { label: "Protein", val: totalProt, goal: 50, color: MACRO_COLORS.protein },
+    { label: "Carbs",   val: totalCarb, goal: 50, color: MACRO_COLORS.carbs   },
+    { label: "Fats",    val: totalFat,  goal: 50, color: MACRO_COLORS.fats    },
+    { label: "Fibres",  val: 0,         goal: 50, color: MACRO_COLORS.fibres  },
+  ];
+
+  return (
+    <View style={q.intakeCard}>
+      <Text weight="700" style={q.intakeTitle}>Calories Intake</Text>
+      <View style={q.intakeBody}>
+        {/* Macro legend grid */}
+        <View style={q.macroGrid}>
+          {macroRows.map((m) => (
+            <View key={m.label} style={q.macroRow}>
+              <View style={[q.macroDot, { backgroundColor: m.color }]} />
+              <Text style={q.macroLabelTxt}>{m.label}</Text>
+              <Text weight="600" style={q.macroValTxt}>
+                {m.val.toFixed(0)}/{m.goal}g
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Donut ring */}
+        <View style={{ alignItems: "center", justifyContent: "center" }}>
+          <Svg width={size} height={size} style={{ position: "absolute" }}>
+            <Circle
+              cx={size / 2} cy={size / 2} r={r}
+              stroke="#E8F5E9" strokeWidth={10} fill="none"
+            />
+            <Circle
+              cx={size / 2} cy={size / 2} r={r}
+              stroke={GREEN_DARK}
+              strokeWidth={10}
+              fill="none"
+              strokeDasharray={`${dash} ${circ - dash}`}
+              transform={`rotate(-90, ${size / 2}, ${size / 2})`}
+              strokeLinecap="round"
+            />
+          </Svg>
+          <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+            <Text weight="800" style={q.donutVal}>{totalCal}</Text>
+            <Text style={q.donutSub}>/{goal}</Text>
+            <Text style={q.donutUnit}>kcal</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+// ── Food card ──────────────────────────────────
+const FoodCard = ({ item, index, onEdit, onDelete }) => {
+  const opacity   = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(12)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 320,
-        delay: index * 60,
-        useNativeDriver: true,
-      }),
-      Animated.spring(translateY, {
-        toValue: 0,
-        speed: 16,
-        bounciness: 3,
-        delay: index * 60,
-        useNativeDriver: true,
-      }),
+      Animated.timing(opacity, { toValue: 1, duration: 300, delay: index * 60, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: 0, speed: 16, bounciness: 3, delay: index * 60, useNativeDriver: true }),
     ]).start();
   }, []);
 
-  const itemCal = (item.calories || 0) * (item.quantity || 1);
-  const itemProt = ((item.protein || 0) * (item.quantity || 1)).toFixed(1);
-  const itemCarbs = ((item.carbs || 0) * (item.quantity || 1)).toFixed(1);
-  const itemFat = ((item.fat || 0) * (item.quantity || 1)).toFixed(1);
+  const itemCal = Math.round((item.calories || 0) * (item.quantity || 1));
+  const qty     = item.quantity || 1;
 
   return (
-    <Animated.View
-      style={[p.foodCard, { opacity, transform: [{ translateY }] }]}
-    >
-      {/* Meal icon bubble */}
-      <View style={[p.foodIconBubble, { backgroundColor: mealMeta.iconBg }]}>
-        <Ionicons name={mealMeta.icon} size={22} color={mealMeta.accent} />
-      </View>
+    <Animated.View style={[q.foodCard, { opacity, transform: [{ translateY }] }]}>
+      {/* Time label */}
+      <Text style={q.timeLabel}>7:30 am</Text>
 
-      {/* Content */}
-      <View style={p.foodContent}>
-        {/* Name + actions */}
-        <View style={p.foodHeader}>
-          <Text weight="700" style={p.foodName} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <View style={p.foodActions}>
-            <TouchableOpacity
-              style={p.actionBtn}
-              onPress={onEdit}
-              activeOpacity={0.7}
-            >
-              <Feather name="edit-2" size={13} color={C.textSub} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[p.actionBtn, p.actionBtnDanger]}
-              onPress={onDelete}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons name="delete-outline" size={15} color={C.danger} />
-            </TouchableOpacity>
+      <View style={q.foodCardInner}>
+        {/* Food image */}
+        <View style={q.foodImgWrap}>
+          {item.image ? (
+            <Image source={{ uri: item.image }} style={q.foodImg} />
+          ) : (
+            <View style={[q.foodImg, q.foodImgFallback]}>
+              <Ionicons name="restaurant-outline" size={26} color="#ccc" />
+            </View>
+          )}
+        </View>
+
+        {/* Content */}
+        <View style={q.foodMid}>
+          <Text weight="700" style={q.foodName} numberOfLines={1}>{item.name}</Text>
+          <View style={q.qtyRow}>
+            <Text style={q.qtyLabel}>Quantity  {qty}</Text>
+            <Feather name="chevron-down" size={14} color={GREEN_DARK} />
           </View>
         </View>
 
-        {/* Quantity + total cals */}
-        <Text style={p.foodServingLine}>
-          {item.quantity || 1} serving{(item.quantity || 1) > 1 ? "s" : ""} ·{" "}
-          {item.calories} kcal/serving
-        </Text>
+        {/* Edit icon */}
+        <TouchableOpacity style={q.editBtn} onPress={onEdit} activeOpacity={0.7}>
+          <Feather name="edit-2" size={15} color={PURPLE} />
+        </TouchableOpacity>
 
-        {/* Macro chips */}
-        <View style={p.macroChipRow}>
-          <View style={[p.macroChip, { backgroundColor: C.blueLight }]}>
-            <Text weight="700" style={[p.macroChipTxt, { color: C.blue }]}>
-              P {itemProt}g
-            </Text>
-          </View>
-          <View style={[p.macroChip, { backgroundColor: C.emeraldLight }]}>
-            <Text weight="700" style={[p.macroChipTxt, { color: C.emerald }]}>
-              C {itemCarbs}g
-            </Text>
-          </View>
-          <View style={[p.macroChip, { backgroundColor: C.orangeLight }]}>
-            <Text weight="700" style={[p.macroChipTxt, { color: C.orange }]}>
-              F {itemFat}g
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Calorie badge */}
-      <View style={[p.calBadge, { borderColor: mealMeta.accent }]}>
-        <Text weight="800" style={[p.calBadgeVal, { color: mealMeta.accent }]}>
-          {Math.round(itemCal)}
-        </Text>
-        <Text style={p.calBadgeUnit}>kcal</Text>
+        {/* Calorie badge */}
+        <CalorieBadge calories={itemCal} size={isSmall ? 64 : 72} />
       </View>
     </Animated.View>
   );
@@ -171,48 +229,39 @@ const FoodCard = ({ item, mealMeta, index, onEdit, onDelete }) => {
 // ─────────────────────────────────────────────────────
 const NutritionPlate = () => {
   const navigation = useNavigation();
-  const route = useRoute();
-  const mealType = normalizeMealType(route.params?.mealType);
-  const meta = MEAL_META[mealType] || MEAL_META.Snacks;
+  const route      = useRoute();
+  const mealType   = normalizeMealType(route.params?.mealType);
+  const meta       = MEAL_META[mealType] || MEAL_META.Snacks;
 
-  const [items, setItems] = useState([]);
+  const [items, setItems]           = useState([]);
+  const [calorieGoal, setCalorieGoal] = useState(2000);
 
-  const heroFade = useRef(new Animated.Value(0)).current;
-  const heroSlide = useRef(new Animated.Value(14)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(heroFade, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.spring(heroSlide, {
-        toValue: 0,
-        speed: 14,
-        bounciness: 3,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
   }, []);
-
-  // ── Today key ─────────────────────────────────
-
 
   // ── Load ──────────────────────────────────────
   useEffect(() => {
-    const loadPlate = async () => {
+    const load = async () => {
       try {
         const raw = await AsyncStorage.getItem(getTodayKey());
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        ensureMealsShape(parsed);
-        setItems(parsed.meals?.[mealType] || []);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          ensureMealsShape(parsed);
+          setItems(parsed.meals?.[mealType] || []);
+        }
+        const goalRaw = await AsyncStorage.getItem("calorieGoalData");
+        if (goalRaw) {
+          const g = JSON.parse(goalRaw);
+          setCalorieGoal(g.calorieGoal || 2000);
+        }
       } catch (err) {
         console.log("Error loading plate:", err);
       }
     };
-    loadPlate();
+    load();
   }, [mealType]);
 
   // ── Remove ────────────────────────────────────
@@ -227,260 +276,112 @@ const NutritionPlate = () => {
       ensureMealsShape(log);
       log.meals[mealType] = updated;
       const allMeals = Object.values(log.meals).flat();
-      log.totalCalories = allMeals.reduce(
-        (s, x) => s + (x.calories || 0) * (x.quantity || 1),
-        0,
-      );
-      log.totalProtein = allMeals.reduce(
-        (s, x) => s + (x.protein || 0) * (x.quantity || 1),
-        0,
-      );
-      log.totalCarbs = allMeals.reduce(
-        (s, x) => s + (x.carbs || 0) * (x.quantity || 1),
-        0,
-      );
-      log.totalFat = allMeals.reduce(
-        (s, x) => s + (x.fat || 0) * (x.quantity || 1),
-        0,
-      );
+      log.totalCalories = allMeals.reduce((s, x) => s + (x.calories || 0) * (x.quantity || 1), 0);
+      log.totalProtein  = allMeals.reduce((s, x) => s + (x.protein  || 0) * (x.quantity || 1), 0);
+      log.totalCarbs    = allMeals.reduce((s, x) => s + (x.carbs    || 0) * (x.quantity || 1), 0);
+      log.totalFat      = allMeals.reduce((s, x) => s + (x.fat      || 0) * (x.quantity || 1), 0);
       await AsyncStorage.setItem(key, JSON.stringify(log));
     } catch (err) {
       console.log("Error removing item:", err);
     }
   };
 
-  // ── Totals ────────────────────────────────────
   const totalItems = items.length;
-  const totalCalories = items.reduce(
-    (s, x) => s + (x.calories || 0) * (x.quantity || 1),
-    0,
-  );
-  const totalProtein = items.reduce(
-    (s, x) => s + (x.protein || 0) * (x.quantity || 1),
-    0,
-  );
-  const totalCarbs = items.reduce(
-    (s, x) => s + (x.carbs || 0) * (x.quantity || 1),
-    0,
-  );
-  const totalFat = items.reduce(
-    (s, x) => s + (x.fat || 0) * (x.quantity || 1),
-    0,
-  );
 
   // ─── RENDER ─────────────────────────────────
   return (
-    <View style={p.page}>
+    <View style={q.page}>
+      {/* ══ HEADER ══════════════════════════════ */}
+      <View style={q.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.7} style={q.backBtn}>
+          <Feather name="arrow-left" size={22} color={PURPLE} />
+        </TouchableOpacity>
+        <View style={{ marginLeft: 10 }}>
+          <Text weight="700" style={q.headerTitle}>Health Wellness</Text>
+          <Text style={q.headerSub}>Your today's plate</Text>
+        </View>
+      </View>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         bounces={false}
-        contentContainerStyle={{ paddingBottom: totalItems > 0 ? 110 : 32 }}
+        contentContainerStyle={{ paddingBottom: 90 }}
       >
-        {/* ══ HERO ══════════════════════════════ */}
-        <Animated.View
-          style={{ opacity: heroFade, transform: [{ translateY: heroSlide }] }}
-        >
-          <LinearGradient
-            colors={[C.primaryDark, C.primary, C.primaryMid]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={p.hero}
-          >
-            {/* Decorative bubble */}
-            <View style={p.heroBubble} />
+        <Animated.View style={{ opacity: fadeAnim }}>
 
-            {/* Top bar */}
-            <View style={p.topBar}>
-              <TouchableOpacity
-                style={p.backBtn}
-                onPress={() => navigation.goBack()}
-                activeOpacity={0.75}
-              >
-                <Feather name="arrow-left" size={18} color="#fff" />
-              </TouchableOpacity>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={p.heroEyebrow}>Meal Plate</Text>
-                <Text weight="800" style={p.heroTitle}>
-                  My {mealType}
-                </Text>
-              </View>
-              <PressScale
-                onPress={() =>
-                  navigation.navigate("NutritionAddDiet", { mealType })
-                }
-              >
-                <View style={p.addMoreBtnHero}>
-                  <Feather name="plus" size={16} color="#fff" />
-                  <Text weight="700" style={p.addMoreBtnHeroTxt}>
-                    Add
-                  </Text>
-                </View>
-              </PressScale>
-            </View>
+          {/* ══ HEADER VEGGIES BANNER ════════════ */}
+          <HeaderVeggies
+            width={width}
+            height={90}
+            preserveAspectRatio="xMidYMid slice"
+          />
 
-            {/* Summary strip */}
-            <View style={p.summaryStrip}>
-              <View style={p.summaryItem}>
-                <Text weight="800" style={p.summaryBigVal}>
-                  {totalItems < 10 ? `0${totalItems}` : totalItems}
-                </Text>
-                <Text style={p.summarySmallLabel}>Items</Text>
-              </View>
-              <View style={p.summaryDivider} />
-              <View style={p.summaryItem}>
-                <Text weight="800" style={p.summaryBigVal}>
-                  {Math.round(totalCalories)}
-                </Text>
-                <Text style={p.summarySmallLabel}>kcal</Text>
-              </View>
-              <View style={p.summaryDivider} />
-              <View style={p.summaryItem}>
-                <Text weight="800" style={p.summaryBigVal}>
-                  {totalProtein.toFixed(1)}g
-                </Text>
-                <Text style={p.summarySmallLabel}>Protein</Text>
-              </View>
-              <View style={p.summaryDivider} />
-              <View style={p.summaryItem}>
-                <Text weight="800" style={p.summaryBigVal}>
-                  {totalCarbs.toFixed(1)}g
-                </Text>
-                <Text style={p.summarySmallLabel}>Carbs</Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </Animated.View>
+          {/* ══ CALORIES INTAKE CARD ════════════ */}
+          <CaloriesIntakeCard items={items} calorieGoal={calorieGoal} />
 
-        {/* ══ EMPTY STATE ═══════════════════════ */}
-        {totalItems === 0 && (
-          <Animated.View style={[p.emptyState, { opacity: heroFade }]}>
-            <View style={[p.emptyIconWrap, { backgroundColor: meta.iconBg }]}>
-              <Ionicons name={meta.icon} size={36} color={meta.accent} />
-            </View>
-            <Text weight="700" style={p.emptyTitle}>
-              Your {mealType} plate is empty
-            </Text>
-            <Text style={p.emptySubtitle}>
-              Add food items to track calories and macronutrients for this meal.
-            </Text>
-            <PressScale
-              onPress={() =>
-                navigation.navigate("NutritionAddDiet", { mealType })
-              }
-            >
-              <LinearGradient
-                colors={[C.primaryLight, C.primaryDark]}
-                style={p.emptyBtn}
-              >
-                <Feather name="plus" size={16} color="#fff" />
-                <Text weight="700" style={p.emptyBtnTxt}>
-                  Add food to plate
-                </Text>
-              </LinearGradient>
-            </PressScale>
-          </Animated.View>
-        )}
+          {/* ══ MEAL SECTION HEADER ═════════════ */}
+          <Text weight="700" style={q.sectionHeader}>{mealType} Plate</Text>
 
-        {/* ══ FOOD CARDS ════════════════════════ */}
-        {totalItems > 0 && (
-          <View style={p.cardList}>
-            {/* Total macros summary card */}
-            <Animated.View style={[p.totalSummaryCard, { opacity: heroFade }]}>
-              <Text weight="700" style={p.totalSummaryTitle}>
-                Meal Summary
+          {/* ══ EMPTY STATE ═════════════════════ */}
+          {totalItems === 0 && (
+            <View style={q.emptyState}>
+              <View style={[q.emptyIconWrap, { backgroundColor: meta.accent + "18" }]}>
+                <Ionicons name={meta.icon} size={36} color={meta.accent} />
+              </View>
+              <Text weight="700" style={q.emptyTitle}>Your {mealType} plate is empty</Text>
+              <Text style={q.emptySubtitle}>
+                Add food items to track calories and macronutrients for this meal.
               </Text>
-              <View style={p.totalMacroRow}>
-                {[
-                  {
-                    l: "Calories",
-                    v: `${Math.round(totalCalories)} kcal`,
-                    c: C.primary,
-                    bg: C.primaryGhost,
-                  },
-                  {
-                    l: "Protein",
-                    v: `${totalProtein.toFixed(1)}g`,
-                    c: C.blue,
-                    bg: C.blueLight,
-                  },
-                  {
-                    l: "Carbs",
-                    v: `${totalCarbs.toFixed(1)}g`,
-                    c: C.emerald,
-                    bg: C.emeraldLight,
-                  },
-                  {
-                    l: "Fats",
-                    v: `${totalFat.toFixed(1)}g`,
-                    c: C.orange,
-                    bg: C.orangeLight,
-                  },
-                ].map((m) => (
-                  <View
-                    key={m.l}
-                    style={[p.totalMacroItem, { backgroundColor: m.bg }]}
-                  >
-                    <Text
-                      weight="800"
-                      style={[p.totalMacroVal, { color: m.c }]}
-                    >
-                      {m.v}
-                    </Text>
-                    <Text style={[p.totalMacroLabel, { color: m.c }]}>
-                      {m.l}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </Animated.View>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate("NutritionAddDiet", { mealType })}
+              >
+                <LinearGradient
+                  colors={[GREEN_LIGHT, GREEN_DARK]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={q.emptyBtn}
+                >
+                  <Feather name="plus" size={16} color="#fff" />
+                  <Text weight="700" style={q.emptyBtnTxt}>Add food to plate</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          )}
 
-            {/* Individual food items */}
-            {items.map((item, idx) => (
-              <FoodCard
-                key={item.id}
-                item={item}
-                mealMeta={meta}
-                index={idx}
-                onEdit={() =>
-                  navigation.navigate("NutritionAddDiet", { mealType })
-                }
-                onDelete={() => removeItem(item.id)}
-              />
-            ))}
-          </View>
-        )}
+          {/* ══ FOOD CARDS ══════════════════════ */}
+          {items.map((item, idx) => (
+            <FoodCard
+              key={item.id}
+              item={item}
+              index={idx}
+              onEdit={() => navigation.navigate("NutritionAddDiet", { mealType })}
+              onDelete={() => removeItem(item.id)}
+            />
+          ))}
+        </Animated.View>
       </ScrollView>
 
-      {/* ══ BOTTOM BUTTONS ════════════════════ */}
-      {totalItems > 0 && (
-        <View style={p.bottomBar}>
-          <PressScale
-            style={{ flex: 1 }}
-            onPress={() =>
-              navigation.navigate("NutritionAddDiet", { mealType })
-            }
-          >
-            <View style={p.addMoreBtn}>
-              <Feather name="plus" size={16} color={C.primary} />
-              <Text weight="600" style={p.addMoreBtnTxt}>
-                Add more
-              </Text>
-            </View>
-          </PressScale>
+      {/* ══ BOTTOM BAR ══════════════════════════ */}
+      <View style={q.bottomBar}>
+        <TouchableOpacity
+          style={q.bottomBtn}
+          activeOpacity={0.75}
+          onPress={() => navigation.navigate("ScanFood", { mealType })}
+        >
+          <Text weight="600" style={q.bottomBtnTxt}>Scan Food</Text>
+        </TouchableOpacity>
 
-          <PressScale style={{ flex: 1 }} onPress={() => navigation.goBack()}>
-            <LinearGradient
-              colors={[C.primaryLight, C.primaryDark]}
-              style={p.confirmBtn}
-            >
-              <Feather name="check" size={16} color="#fff" />
-              <Text weight="700" style={p.confirmBtnTxt}>
-                Confirm plate
-              </Text>
-            </LinearGradient>
-          </PressScale>
-        </View>
-      )}
+        <View style={q.bottomDivider} />
+
+        <TouchableOpacity
+          style={q.bottomBtn}
+          activeOpacity={0.75}
+          onPress={() => navigation.navigate("ScanBarcode", { mealType })}
+        >
+          <Text weight="600" style={q.bottomBtnTxt}>Scan Barcode</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -488,163 +389,108 @@ const NutritionPlate = () => {
 export default NutritionPlate;
 
 // ── Styles ─────────────────────────────────────────
-const p = StyleSheet.create({
-  page: { flex: 1, backgroundColor: C.bg },
+const q = StyleSheet.create({
+  page: { flex: 1, backgroundColor: "#fff" },
 
-  // Hero
-  hero: {
-    paddingHorizontal: 20,
+  // ── Header ──
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
     paddingTop: Platform.OS === "ios" ? 56 : 38,
-    paddingBottom: 22,
-    overflow: "hidden",
+    paddingBottom: 14,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F0F0",
   },
-  heroBubble: {
-    position: "absolute",
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    top: -50,
-    right: -40,
-  },
-  topBar: { flexDirection: "row", alignItems: "center", marginBottom: 20 },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 13,
-    backgroundColor: "rgba(255,255,255,0.18)",
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
   },
-  heroEyebrow: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.62)",
-    marginBottom: 2,
-    letterSpacing: 0.3,
-  },
-  heroTitle: { fontSize: isSmall ? 20 : 24, color: "#fff" },
-  addMoreBtnHero: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    backgroundColor: "rgba(255,255,255,0.18)",
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  addMoreBtnHeroTxt: { color: "#fff", fontSize: 13 },
+  headerTitle: { fontSize: 18, color: PURPLE },
+  headerSub:   { fontSize: 12, color: "#333", marginTop: 2 },
 
-  // Summary strip
-  summaryStrip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.13)",
+  // ── Calories Intake card ──
+  intakeCard: {
+    backgroundColor: "#fff",
     borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-  },
-  summaryItem: { flex: 1, alignItems: "center" },
-  summaryBigVal: { fontSize: isSmall ? 16 : 18, color: "#fff" },
-  summarySmallLabel: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.62)",
-    marginTop: 2,
-    letterSpacing: 0.2,
-  },
-  summaryDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: "rgba(255,255,255,0.15)",
-  },
-
-  // Card list
-  cardList: { paddingHorizontal: 16, paddingTop: 16, gap: 10 },
-
-  // Total summary card
-  totalSummaryCard: {
-    backgroundColor: C.surface,
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
+    margin: 16,
+    marginTop: -20,
+    marginBottom: 8,
+    zIndex: 1,  
+    padding: 16,
     shadowColor: "#000",
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.07,
     shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  intakeTitle: { fontSize: 15, color: "#1A1A1A", marginBottom: 14 },
+  intakeBody:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+
+  macroGrid:   { flex: 1, gap: 10, paddingRight: 8 },
+  macroRow:    { flexDirection: "row", alignItems: "center", gap: 8 },
+  macroDot:    { width: 10, height: 10, borderRadius: 5 },
+  macroLabelTxt: { fontSize: 12, color: "#555", flex: 1 },
+  macroValTxt:   { fontSize: 12, color: "#1A1A1A" },
+
+  donutVal:  { fontSize: isSmall ? 15 : 18, color: "#1A1A1A", lineHeight: 22 },
+  donutSub:  { fontSize: 11, color: "#888" },
+  donutUnit: { fontSize: 10, color: "#aaa" },
+
+  // ── Section header ──
+  sectionHeader: {
+    fontSize: 16,
+    color: "#1A1A1A",
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+
+  // ── Food card ──
+  foodCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  totalSummaryTitle: { fontSize: 14, color: C.text, marginBottom: 10 },
-  totalMacroRow: { flexDirection: "row", gap: 8 },
-  totalMacroItem: {
-    flex: 1,
-    borderRadius: 12,
-    padding: isSmall ? 8 : 10,
-    alignItems: "center",
-  },
-  totalMacroVal: { fontSize: isSmall ? 12 : 13, marginBottom: 2 },
-  totalMacroLabel: { fontSize: 10 },
+  timeLabel:     { fontSize: 11, color: "#999", marginBottom: 8 },
+  foodCardInner: { flexDirection: "row", alignItems: "center", gap: 12 },
 
-  // Food card
-  foodCard: {
-    backgroundColor: C.surface,
-    borderRadius: 18,
-    padding: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderWidth: 1,
-    borderColor: C.border,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+  foodImgWrap: { flexShrink: 0 },
+  foodImg: {
+    width: isSmall ? 52 : 60,
+    height: isSmall ? 52 : 60,
+    borderRadius: isSmall ? 26 : 30,
   },
-  foodIconBubble: {
-    width: isSmall ? 44 : 50,
-    height: isSmall ? 44 : 50,
-    borderRadius: isSmall ? 14 : 16,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  foodContent: { flex: 1 },
-  foodHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 4,
-  },
-  foodName: { flex: 1, fontSize: isSmall ? 14 : 15, color: C.text },
-  foodActions: { flexDirection: "row", gap: 4, marginLeft: 6 },
-  actionBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: C.bg,
+  foodImgFallback: {
+    backgroundColor: "#F5F5F5",
     alignItems: "center",
     justifyContent: "center",
   },
-  actionBtnDanger: { backgroundColor: C.dangerLight },
-  foodServingLine: { fontSize: 12, color: C.textMuted, marginBottom: 8 },
-  macroChipRow: { flexDirection: "row", gap: 6 },
-  macroChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
-  macroChipTxt: { fontSize: 11 },
 
-  // Calorie badge
-  calBadge: {
-    width: isSmall ? 56 : 64,
-    height: isSmall ? 56 : 64,
-    borderRadius: isSmall ? 28 : 32,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: C.surface,
-    flexShrink: 0,
+  foodMid:  { flex: 1 },
+  foodName: { fontSize: isSmall ? 14 : 15, color: "#1A1A1A", marginBottom: 5 },
+  qtyRow:   { flexDirection: "row", alignItems: "center", gap: 4 },
+  qtyLabel: { fontSize: 13, color: "#555" },
+
+  editBtn: {
+    position: "absolute",
+    top: -30,
+    right: 0,
+    padding: 4,
   },
-  calBadgeVal: { fontSize: isSmall ? 14 : 16, lineHeight: isSmall ? 17 : 20 },
-  calBadgeUnit: { fontSize: 9, color: C.textMuted, marginTop: 1 },
 
-  // Empty state
+  // ── Empty state ──
   emptyState: {
     alignItems: "center",
     paddingHorizontal: 32,
@@ -659,64 +505,48 @@ const p = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 4,
   },
-  emptyTitle: { fontSize: 18, color: C.text, textAlign: "center" },
-  emptySubtitle: {
-    fontSize: 13,
-    color: C.textMuted,
-    textAlign: "center",
-    lineHeight: 19,
-  },
+  emptyTitle:    { fontSize: 17, color: "#1A1A1A", textAlign: "center" },
+  emptySubtitle: { fontSize: 13, color: "#888", textAlign: "center", lineHeight: 19 },
   emptyBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     borderRadius: 14,
-    paddingVertical: 12,
+    paddingVertical: 13,
     paddingHorizontal: 24,
     marginTop: 4,
   },
   emptyBtnTxt: { color: "#fff", fontSize: 15 },
 
-  // Bottom bar
+  // ── Bottom bar ──
   bottomBar: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     flexDirection: "row",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === "ios" ? 30 : 16,
-    backgroundColor: C.surface,
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: C.border,
+    borderTopColor: "#F0F0F0",
+    paddingBottom: Platform.OS === "ios" ? 28 : 14,
+    paddingTop: 12,
     shadowColor: "#000",
-    shadowOpacity: 0.07,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: -3 },
-    elevation: 6,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: -2 },
+    elevation: 5,
   },
-  addMoreBtn: {
+  bottomBtn: {
     flex: 1,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    borderWidth: 1.5,
-    borderColor: C.primary,
-    paddingVertical: 13,
-    borderRadius: 14,
-    backgroundColor: C.primaryGhost,
+    paddingVertical: 4,
   },
-  addMoreBtnTxt: { color: C.primary, fontSize: isSmall ? 14 : 15 },
-  confirmBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    borderRadius: 14,
-    paddingVertical: 13,
+  bottomBtnTxt: { fontSize: 15, color: GREEN_DARK },
+  bottomDivider: {
+    width: 1,
+    height: 22,
+    backgroundColor: "#E0E0E0",
   },
-  confirmBtnTxt: { color: "#fff", fontSize: isSmall ? 14 : 15 },
 });

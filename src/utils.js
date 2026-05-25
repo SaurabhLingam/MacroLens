@@ -10,6 +10,8 @@ export const STORAGE_KEYS = {
   CURRENT_USER: "nutritionCurrentUser",
   ONBOARDING_DONE: "nutritionOnboardingComplete",
   BARCODE_CACHE: "barcodeProductCache",
+  SCAN_COUNT: "scan_count_today",
+  LAST_BARCODE: "last_barcode_item",
 };
 
 // ── Meal config ───────────────────────────────────────────────────────────
@@ -39,6 +41,7 @@ export const getTodayKey = () => {
   const d = String(t.getDate()).padStart(2, "0");
   return `nutritionLog_${y}-${m}-${d}`;
 };
+
 
 /**
  * Converts a value to a finite number, returning `fallback` if it isn't one.

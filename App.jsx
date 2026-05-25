@@ -14,6 +14,8 @@ import BarcodeScanner from "./src/pages/BarcodeScanner";
 import Nutrition from "./src/pages/Nutrition";
 import SetGoal from "./src/pages/SetGoal";
 import History from "./src/pages/History";
+import CalorieCalculator from "./src/pages/CalorieCalculator";
+import AddCustomFoodScreen from "./src/pages/AddCustomFood";
 import { Text } from "./src/components/TextWrapper";
 import { useAppFonts } from "./src/components/TextWrapper";
 
@@ -86,6 +88,8 @@ export default function App() {
         <Stack.Screen name="NutritionBarcode" component={BarcodeScanner} />
         <Stack.Screen name="NutritionHistory" component={History} />
         <Stack.Screen name="Consultation" component={Consultation} />
+        <Stack.Screen name="CalorieCalculator" component={CalorieCalculator} />
+        <Stack.Screen name="AddCustomFood" component={AddCustomFoodScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -109,4 +113,4 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     textAlign: "center",
   },
-});
+}); 

@@ -6,7 +6,8 @@
  *  • Stats row "Burned" replaced with "Progress %" — no more misleading 0
  *  • Chip cards refactored: proper icon + label stacking, larger hit targets
  *  • Macro card gains per-row value badges and a subtle separator
- *  • Meal grid cards: flexible height, SVG in a tinted icon bubble, calorie hint
+ *  • Meal grid replaced with WeeklyNutritionTrend bar chart + Wellness Insights
+ *  • Chart reads real AsyncStorage data using nutritionLog_YYYY-MM-DD keys
  *  • Scan cards: icon + title + sub balanced with flex layout
  *  • Consult banner shadow fixed to use #000 for Android compatibility
  *  • Animated stagger on section entry (cards slide up sequentially)
@@ -23,6 +24,7 @@ import {
   StyleSheet,
   Animated,
   Platform,
+  Modal,
 } from "react-native";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -31,11 +33,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Text } from "../components/TextWrapper";
 import { C } from "../theme";
 import { getTodayKey, STORAGE_KEYS } from "../utils";
-
+import { BarChart } from "react-native-chart-kit";
 import NutritionSetGoalSVG from "../../assets/NutritionSetGoal.svg";
 import WellnessNutrition from "../../assets/WellnessNutrition.svg";
 import MacroLensHero from "../../assets/MacroLens.svg";
 import FoodGroup from "../../assets/Group.svg";
+import HelixInsightCard from "../../assets/Group 1000004737.svg";
+import CalorieTargetCard from "../../assets/Group 1000004803.svg";
 import Rectangle3464971 from "../../assets/Rectangle 3464971.svg";
 import Rectangle3464972 from "../../assets/Rectangle 3464972.svg";
 import Rectangle3464973 from "../../assets/Rectangle 3464973.svg";
@@ -43,12 +47,9 @@ import SpoonFork from "../../assets/Group 1000004794.svg";
 import ScanIcon from "../../assets/scan.svg";
 import BarcodeIcon from "../../assets/barcode.svg";
 import Svg, {
-  Circle,
-  Defs,
-  LinearGradient as SvgGradient,
-  Stop,
+  Circle, Defs, LinearGradient as SvgGradient, Stop,
+  Rect, Text as SvgText, Line,
 } from "react-native-svg";
-
 import BreakFastMeal from "../../assets/BreakFastMeal.svg";
 import LunchMeal from "../../assets/LunchMeal.svg";
 import SnackMeal from "../../assets/SnackMeal.svg";
@@ -61,6 +62,7 @@ const isSmall = width < 380;
 // DESIGN TOKENS
 // ─────────────────────────────────────────────
 
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const MEAL_META = [
   {
@@ -173,6 +175,7 @@ const MacroBar = ({ label, current, max, color, lightBg }) => {
     </View>
   );
 };
+
 const MiniMacroBar = ({ label, current, max, color }) => (
   <View style={s.miniMacro}>
     <View style={s.miniMacroLabelRow}>
@@ -180,13 +183,14 @@ const MiniMacroBar = ({ label, current, max, color }) => (
       <Text style={s.miniMacroVal}>{Math.round(current)}/{max}g</Text>
     </View>
     <View style={s.miniTrack}>
-      <View style={[s.miniFill, { 
-        width: `${Math.min((current/max)*100, 100)}%`, 
-        backgroundColor: color 
+      <View style={[s.miniFill, {
+        width: `${Math.min((current / max) * 100, 100)}%`,
+        backgroundColor: color
       }]} />
     </View>
   </View>
 );
+
 /** Section header with optional right action */
 const SectionHead = ({ title, action, actionLabel }) => (
   <View style={s.sectionRow}>
@@ -209,6 +213,189 @@ const SectionHead = ({ title, action, actionLabel }) => (
 );
 
 // ─────────────────────────────────────────────
+// WEEKLY NUTRITION TREND COMPONENT
+// ─────────────────────────────────────────────
+
+const WeeklyNutritionTrend = ({ goalCalories, macroTargets }) => {
+  const navigation = useNavigation();
+  const [weekData, setWeekData] = useState(
+    DAYS.map(() => ({ calories: 0, protein: 0, carbs: 0, fat: 0 }))
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const load = async () => {
+        try {
+          const today = new Date();
+          const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+          const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+          const results = await Promise.all(
+            DAYS.map(async (_, i) => {
+              const dd = new Date(today);
+              dd.setDate(today.getDate() + mondayOffset + i);
+              const y = dd.getFullYear();
+              const m = String(dd.getMonth() + 1).padStart(2, "0");
+              const day = String(dd.getDate()).padStart(2, "0");
+              const key = `nutritionLog_${y}-${m}-${day}`;
+
+              const raw = await AsyncStorage.getItem(key);
+              if (raw) {
+                const p = JSON.parse(raw);
+                return {
+                  calories: p.totalCalories || 0,
+                  protein: p.totalProtein || 0,
+                  carbs: p.totalCarbs || 0,
+                  fat: p.totalFat || 0,
+                };
+              }
+              return { calories: 0, protein: 0, carbs: 0, fat: 0 };
+            })
+          );
+          setWeekData(results);
+        } catch (e) {
+          console.warn("WeeklyNutritionTrend load error:", e);
+        }
+      };
+      load();
+    }, [])
+  );
+
+  // Today's column index (0=Mon … 6=Sun)
+  const todayCol = (() => {
+    const d = new Date().getDay();
+    return d === 0 ? 6 : d - 1;
+  })();
+
+  const maxCal = Math.max(goalCalories || 2000, ...weekData.map((d) => d.calories), 100);
+  const BAR_MAX_H = 120;
+
+  // Dynamic wellness insights from real data
+  const insights = [];
+  const avgProtein = weekData.reduce((s, d) => s + d.protein, 0) / 7;
+  const weekendAvg = (weekData[5].calories + weekData[6].calories) / 2;
+  const weekdayAvg = weekData.slice(0, 5).reduce((s, d) => s + d.calories, 0) / 5;
+  if (weekendAvg > weekdayAvg * 1.1)
+    insights.push("You consume more calories on weekends.");
+  if (avgProtein < (macroTargets?.protein || 80) * 0.8)
+    insights.push("Your protein intake is slightly below recommended levels.");
+  const avgCarbs = weekData.reduce((s, d) => s + d.carbs, 0) / 7;
+  if (avgCarbs > (macroTargets?.carbs || 200) * 1.1)
+    insights.push("Your carb intake is on the higher side this week.");
+  const daysLogged = weekData.filter((d) => d.calories > 0).length;
+  if (daysLogged < 3)
+    insights.push("Log more meals to get personalised insights.");
+  if (insights.length === 0)
+    insights.push("Great consistency this week! Keep it up.");
+
+  return (
+    <>
+      <StaggerItem delay={200}>
+        <View style={wt.card}>
+          {/* Header */}
+          <View style={wt.header}>
+            <Text weight="700" style={wt.title}>Weekly Nutrition Trend</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate("NutritionStats")}
+              activeOpacity={0.7}
+              style={wt.viewBtn}
+            >
+              <Text weight="600" style={wt.viewTxt}>View Stats</Text>
+              <Feather name="arrow-right" size={13} color={C.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Chart */}
+          <View style={wt.chartArea}>
+            {/* Y-axis labels */}
+            <View style={wt.yAxis}>
+              {[maxCal, Math.round(maxCal * 0.75), Math.round(maxCal * 0.5), Math.round(maxCal * 0.25), 0].map((v) => (
+                <Text key={v} style={wt.yLabel}>{v}</Text>
+              ))}
+            </View>
+
+            {/* Stacked bars */}
+            <View style={wt.barsRow}>
+              {weekData.map((d, i) => {
+                const totalH = (d.calories / maxCal) * BAR_MAX_H;
+                // Split height proportionally by calorie density
+                const proteinCal = d.protein * 4;
+                const fatCal = d.fat * 9;
+                const carbCal = d.carbs * 4;
+                const totalMacroCal = proteinCal + fatCal + carbCal || 1;
+                const proteinH = (proteinCal / totalMacroCal) * totalH;
+                const fatH = (fatCal / totalMacroCal) * totalH;
+                const carbH = Math.max(totalH - proteinH - fatH, 0);
+                const isToday = i === todayCol;
+                return (
+                  <View key={i} style={wt.barCol}>
+                    <View style={[wt.barWrap, { height: BAR_MAX_H }]}>
+                      <View style={[wt.barStack, { height: Math.max(totalH, 0) }]}>
+                        {/* Carbs — bottom — teal */}
+                        <View style={[wt.seg, { height: carbH, backgroundColor: "#4ECDC4" }]} />
+                        {/* Fat — middle — yellow */}
+                        <View style={[wt.seg, { height: fatH, backgroundColor: "#FFD166" }]} />
+                        {/* Protein — top — purple */}
+                        <View style={[wt.seg, {
+                          height: proteinH,
+                          backgroundColor: "#9B5DE5",
+                          borderTopLeftRadius: 5,
+                          borderTopRightRadius: 5,
+                        }]} />
+                      </View>
+                      {/* Goal line */}
+                      {goalCalories > 0 && (
+                        <View style={[wt.goalLine, {
+                          bottom: (goalCalories / maxCal) * BAR_MAX_H - 1,
+                        }]} />
+                      )}
+                    </View>
+                    <Text
+                      weight={isToday ? "700" : "400"}
+                      style={[wt.dayLabel, isToday && { color: C.primary }]}
+                    >
+                      {DAYS[i]}
+                    </Text>
+                    {isToday && <View style={wt.todayDot} />}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Legend */}
+          <View style={wt.legend}>
+            {[["#9B5DE5", "Protein"], ["#FFD166", "Fat"], ["#4ECDC4", "Carbs"]].map(([color, label]) => (
+              <View key={label} style={wt.legendItem}>
+                <View style={[wt.legendDot, { backgroundColor: color }]} />
+                <Text style={wt.legendTxt}>{label}</Text>
+              </View>
+            ))}
+            {goalCalories > 0 && (
+              <View style={wt.legendItem}>
+                <View style={wt.goalLineLegend} />
+                <Text style={wt.legendTxt}>Goal</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </StaggerItem>
+
+      {/* Wellness Insights card */}
+      <StaggerItem delay={260}>
+    <TouchableOpacity
+      onPress={() => navigation.navigate("NutritionStats")}
+      activeOpacity={0.85}
+      style={{ marginHorizontal: 16, marginTop: 12 }}
+    >
+      <HelixInsightCard width="100%" height={137} />
+    </TouchableOpacity>
+  </StaggerItem>
+    </>
+  );
+};
+
+// ─────────────────────────────────────────────
 // MAIN SCREEN
 // ─────────────────────────────────────────────
 const NutritionHomeRN = () => {
@@ -222,6 +409,11 @@ const NutritionHomeRN = () => {
   const [totalFat, setTotalFat] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [macroTargets, setMacroTargets] = useState({ protein: 120, carbs: 200, fat: 70 });
+  const [mealTray, setMealTray] = useState({ Breakfast: [], Lunch: [], Snacks: [], Dinner: [] });
+  const [activeMealTab, setActiveMealTab] = useState("Breakfast");
+  const [scanCount, setScanCount] = useState(0);
+  const [lastBarcodeItem, setLastBarcodeItem] = useState(null);
+  const [showMealPicker, setShowMealPicker] = useState(false);
 
   // Hero fade/slide
   const heroOpacity = useRef(new Animated.Value(0)).current;
@@ -251,6 +443,9 @@ const NutritionHomeRN = () => {
   const ringOffset = RING_CIRC - consumed * RING_CIRC;
   const caloriesLeft = Math.max(goalCalories - intakeCalories, 0);
   const progressPct = Math.round(consumed * 100);
+  const totalMealsLogged = Object.values(mealTray).reduce(
+    (sum, items) => sum + items.length, 0
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -263,12 +458,20 @@ const NutritionHomeRN = () => {
             setTotalProtein(p.totalProtein || 0);
             setTotalCarbs(p.totalCarbs || 0);
             setTotalFat(p.totalFat || 0);
+            if (p.meals) setMealTray(p.meals);
           } else {
             setIntakeCalories(0);
             setTotalProtein(0);
             setTotalCarbs(0);
             setTotalFat(0);
           }
+          const todayScanKey = `scan_count_${getTodayKey()}`;
+          const scanRaw = await AsyncStorage.getItem(todayScanKey);
+          setScanCount(parseInt(scanRaw) || 0);
+
+          const lastBarcode = await AsyncStorage.getItem(STORAGE_KEYS.LAST_BARCODE);
+          setLastBarcodeItem(lastBarcode || null);
+
           const goalRaw = await AsyncStorage.getItem(STORAGE_KEYS.CALORIE_GOAL);
           if (goalRaw) {
             const p = JSON.parse(goalRaw);
@@ -325,9 +528,9 @@ const NutritionHomeRN = () => {
         style={{ opacity: heroOpacity, transform: [{ translateY: heroSlide }] }}
       >
         <LinearGradient
-          colors={["#9BE36F", "#D4F5B8", "#F5FFF5"]}
+          colors={["#5a9f2f", "#9BE36F", "#D4F5B8", "#fcfffa", "#ffffff"]}
           start={{ x: 0.1, y: 0 }}
-          end={{ x: 0.8, y: 1 }}
+          end={{ x: 0.6, y: 1 }}
           style={s.hero}
         >
           {/* Decorative circles */}
@@ -336,7 +539,7 @@ const NutritionHomeRN = () => {
           <FoodGroup
             width={width + 10}
             height={320}
-            style={{ position: "absolute", left: -5, top: 120, opacity: 0.85 }}
+            style={{ position: "absolute", left: -5, top: 100, opacity: 0.85 }}
           />
 
           {/* Top bar */}
@@ -364,72 +567,105 @@ const NutritionHomeRN = () => {
 
           {/* Calorie ring — shown when goal set */}
           {isGoalSet ? (
-          <>
-          <View style={s.ringSection}>
-            <View style={s.macroSide}>
-              <MiniMacroBar label="Protein" current={totalProtein} max={macroTargets.protein} color="#1C6BF3" />
-              <MiniMacroBar label="Fats" current={totalFat} max={macroTargets.fat} color="#F3C51C" />
-            </View>
-            <View style={s.ringWrap}>
-              <Svg width={160} height={160} viewBox="0 0 140 140">
-                <Circle cx="70" cy="70" r={RING_R} stroke="rgba(13,92,48,0.15)" strokeWidth="11" fill="none" />
-                <Circle cx="70" cy="70" r={RING_R} stroke="#087B08" strokeWidth="11" fill="none"
-                  strokeDasharray={RING_CIRC} strokeDashoffset={ringOffset}
-                  strokeLinecap="round" rotation="-90" origin="70,70" />
-              </Svg>
-              <View style={s.ringCenter}>
-                <Text weight="700" style={s.ringMainVal}>{Math.round(intakeCalories)} Kcal</Text>
-                <Text style={s.ringMainLabel}>/ {goalCalories} kcal</Text>
-                <TouchableOpacity onPress={() => navigation.navigate("NutritionSetGoal")} style={s.editGoalBtn}>
-                  <Text weight="700" style={s.editGoalTxt}>Edit Goal</Text>
+            <>
+              <View style={s.ringSection}>
+                <View style={s.macroSide}>
+                  <MiniMacroBar label="Protein" current={totalProtein} max={macroTargets.protein} color="#1C6BF3" />
+                  <MiniMacroBar label="Fats" current={totalFat} max={macroTargets.fat} color="#F3C51C" />
+                </View>
+                <View style={s.ringWrap}>
+                  <Svg width={160} height={160} viewBox="0 0 140 140">
+                    <Circle cx="70" cy="70" r={RING_R} stroke="rgba(13,92,48,0.15)" strokeWidth="11" fill="none" />
+                    <Circle cx="70" cy="70" r={RING_R} stroke="#087B08" strokeWidth="11" fill="none"
+                      strokeDasharray={RING_CIRC} strokeDashoffset={ringOffset}
+                      strokeLinecap="round" rotation="-90" origin="70,70" />
+                  </Svg>
+                  <View style={s.ringCenter}>
+                    <Text weight="700" style={s.ringMainVal}>{Math.round(intakeCalories)} Kcal</Text>
+                    <Text style={s.ringMainLabel}>/ {goalCalories} kcal</Text>
+                    <TouchableOpacity onPress={() => navigation.navigate("NutritionSetGoal")} style={s.editGoalBtn}>
+                      <Text weight="700" style={s.editGoalTxt}>Edit Goal</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <View style={s.macroSide}>
+                  <MiniMacroBar label="Carbs" current={totalCarbs} max={macroTargets.carbs} color="#F31C1C" />
+                  <View style={{ height: 21 }} />
+                </View>
+              </View>
+
+              <View style={s.quickRow}>
+                <TouchableOpacity style={s.quickCard} onPress={() => setShowMealPicker(true)}>
+                  <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#E6FFE5", borderRadius: 10 }]} />
+                  <SpoonFork width={20} height={20} />
+                  <Text weight="700" style={[s.quickTitle, { color: "#118411" }]}>Log Meal</Text>
+                  <Text style={[s.quickSub, { color: "#118411" }]}>Today: {totalMealsLogged} item{totalMealsLogged !== 1 ? "s" : ""} logged</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={s.quickCard} onPress={() => navigation.navigate("NutritionScan")}>
+                  <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFE7F4", borderRadius: 10 }]} />
+                  <ScanIcon width={20} height={20} />
+                  <Text weight="700" style={[s.quickTitle, { color: "#BD4E9C" }]}>Scan Food</Text>
+                  <Text style={[s.quickSub, { color: "#D44797" }]}>Today: {scanCount} scanned</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={s.quickCard} onPress={() => navigation.navigate("NutritionBarcode")}>
+                  <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFFBE7", borderRadius: 10 }]} />
+                  <BarcodeIcon width={20} height={20} />
+                  <Text weight="700" style={[s.quickTitle, { color: "#E5960D" }]}>Scan Barcode</Text>
+                  <Text style={[s.quickSub, { color: "#E5960D" }]}>{lastBarcodeItem ? `Last: ${lastBarcodeItem}` : "Tap to scan"}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-            <View style={s.macroSide}>
-              <MiniMacroBar label="Carbs" current={totalCarbs} max={macroTargets.carbs} color="#F31C1C" />
-              <View style={{ height: 21 }} />
-            </View>
-          </View>
-
-          <View style={s.quickRow}>
-          <TouchableOpacity style={s.quickCard}>
-            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#E6FFE5", borderRadius: 10 }]} />
-            <SpoonFork width={20} height={20} />
-            <Text weight="700" style={[s.quickTitle, { color: "#118411" }]}>Log Meal</Text>
-            <Text style={[s.quickSub, { color: "#118411" }]}>Today: 2 meals logged</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={s.quickCard}>
-            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFE7F4", borderRadius: 10 }]} />
-            <ScanIcon width={20} height={20} />
-            <Text weight="700" style={[s.quickTitle, { color: "#BD4E9C" }]}>Scan Food</Text>
-            <Text style={[s.quickSub, { color: "#D44797" }]}>Today: 3 scanned</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={s.quickCard}>
-            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFFBE7", borderRadius: 10 }]} />
-            <BarcodeIcon width={20} height={20} />
-            <Text weight="700" style={[s.quickTitle, { color: "#E5960D" }]}>Scan Barcode</Text>
-            <Text style={[s.quickSub, { color: "#E5960D" }]}>Last: Protein Bar</Text>
-          </TouchableOpacity>
-          </View>
-          </>
+            </>
           ) : (
             /* Hero idle state */
             <View style={s.heroIdle}>
-              <View style={s.heroIdleIconWrap}>
-                <Ionicons
-                  name="nutrition"
-                  size={32}
-                  color="rgba(255,255,255,0.9)"
-                />
-              </View>
               <Text weight="800" style={s.heroIdleTitle}>
-                Your Nutrition Hub
+                Track your meals to maintain{"\n"}a balanced diet.
               </Text>
-              <Text style={s.heroIdleSub}>
-                Track meals, scan food, hit your goals.
-              </Text>
+              <TouchableOpacity
+                style={s.viewPlateBtn}
+                onPress={() => navigation.navigate("NutritionSetGoal")}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={["#93D056", "#35A329"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={s.viewPlateBtnInner}
+                >
+                  <Text weight="700" style={s.viewPlateBtnTxt}>Set Goal</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+                <View style={[s.quickRow, { paddingHorizontal: 0, width: "100%" }]}>
+                  <TouchableOpacity style={s.quickCard} onPress={() => setShowMealPicker(true)}>
+                    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#E6FFE5", borderRadius: 10 }]} />
+                    <SpoonFork width={20} height={20} />
+                    <Text weight="700" style={[s.quickTitle, { color: "#118411" }]}>Log Meal</Text>
+                    <Text style={[s.quickSub, { color: "#118411" }]}>Today: {totalMealsLogged} item{totalMealsLogged !== 1 ? "s" : ""} logged</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={s.quickCard} onPress={() => navigation.navigate("NutritionScan")}>
+                    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFE7F4", borderRadius: 10 }]} />
+                    <ScanIcon width={20} height={20} />
+                    <Text weight="700" style={[s.quickTitle, { color: "#BD4E9C" }]}>Scan Food</Text>
+                    <Text style={[s.quickSub, { color: "#D44797" }]}>Today: {scanCount} scanned</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={s.quickCard} onPress={() => navigation.navigate("NutritionBarcode")}>
+                    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFFBE7", borderRadius: 10 }]} />
+                    <BarcodeIcon width={20} height={20} />
+                    <Text weight="700" style={[s.quickTitle, { color: "#E5960D" }]}>Scan Barcode</Text>
+                    <Text style={[s.quickSub, { color: "#E5960D" }]}>{lastBarcodeItem ? `Last: ${lastBarcodeItem}` : "Tap to scan"}</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate("NutritionSetGoal")}
+                  activeOpacity={0.85}
+                  style={{ marginTop: 12, width: "100%" }}
+                >
+                  <CalorieTargetCard width="100%" height={137} />
+                </TouchableOpacity>
             </View>
           )}
         </LinearGradient>
@@ -467,188 +703,110 @@ const NutritionHomeRN = () => {
       )}
 
       {/* ══════════════════════════════════════
-          TODAY'S OVERVIEW  (goal set)
+          TODAY'S MEALS  (goal set)
       ══════════════════════════════════════ */}
       {isGoalSet && (
         <>
           {/* Section header */}
           <StaggerItem delay={80}>
-            <SectionHead
-              title="Today's Overview"
-              action={() => navigation.navigate("NutritionDietDash")}
-              actionLabel="View Plan"
-            />
+            <SectionHead title="Today's Meals" />
           </StaggerItem>
 
-          {/* Goal + intake chips + illustration */}
-          <StaggerItem delay={140}>
-            <View style={s.chipRow}>
-              {/* Goal chip */}
-              <PressScale
-                style={s.chip}
-                onPress={() => navigation.navigate("NutritionSetGoal")}
-              >
-                <View style={[s.chipCard, { backgroundColor: C.primaryGhost }]}>
-                  <View style={s.chipIconRow}>
-                    <View
-                      style={[
-                        s.chipIconBadge,
-                        { backgroundColor: C.primary + "20" },
-                      ]}
-                    >
-                      <Feather name="award" size={14} color={C.primary} />
-                    </View>
-                    <Feather name="edit-2" size={12} color={C.textMuted} />
-                  </View>
-                  <Text
-                    weight="800"
-                    style={[s.chipBigVal, { color: C.primary }]}
+          {/* Meal tabs */}
+          <StaggerItem delay={120}>
+            <View style={[s.mealTabRow, { flexDirection: "row", justifyContent: "space-between" }]}>
+              {MEAL_META.map((m) => {
+                const isActive = activeMealTab === m.title;
+                return (
+                  <TouchableOpacity
+                    key={m.title}
+                    style={[s.mealTab]}
+                    onPress={() => setActiveMealTab(m.title)}
+                    activeOpacity={0.8}
                   >
-                    {goalCalories}
-                  </Text>
-                  <Text style={s.chipUnit}>kcal</Text>
-                  <View style={[s.chipTag, { backgroundColor: C.primary }]}>
-                    <Text weight="700" style={s.chipTagTxt}>
-                      Goal
-                    </Text>
-                  </View>
-                </View>
-              </PressScale>
-
-              {/* Intake chip */}
-              <PressScale
-                style={s.chip}
-                onPress={() => navigation.navigate("NutritionDietDash")}
-              >
-                <View style={[s.chipCard, { backgroundColor: C.blueLight }]}>
-                  <View style={s.chipIconRow}>
-                    <View
-                      style={[
-                        s.chipIconBadge,
-                        { backgroundColor: C.blue + "20" },
-                      ]}
-                    >
-                      <Ionicons
-                        name="restaurant-outline"
-                        size={14}
-                        color={C.blue}
-                      />
+                    <View style={[s.mealTabIconWrap, { backgroundColor: isActive ? m.iconBg : "#F3F4F6" }]}>
+                      <m.img width={28} height={28} />
                     </View>
-                    <Feather name="edit-2" size={12} color={C.textMuted} />
-                  </View>
-                  <Text weight="800" style={[s.chipBigVal, { color: C.blue }]}>
-                    {Math.round(intakeCalories)}
-                  </Text>
-                  <Text style={s.chipUnit}>kcal</Text>
-                  <View style={[s.chipTag, { backgroundColor: C.blue }]}>
-                    <Text weight="700" style={s.chipTagTxt}>
-                      Eaten
+                    <Text weight={isActive ? "700" : "500"} style={[s.mealTabLabel, isActive && { color: m.accent }]}>
+                      {m.title}
                     </Text>
-                  </View>
-                </View>
-              </PressScale>
+                    {(() => {
+                      const cal = (mealTray[m.title] || []).reduce(
+                        (s, x) => s + (x.calories || 0) * (x.quantity || 1), 0
+                      );
+                      return cal > 0 ? (
+                        <Text style={[s.mealTabCal, { color: m.accent }]}>{Math.round(cal)} kcal</Text>
+                      ) : null;
+                    })()}
+                    {isActive && <View style={[s.mealTabIndicator, { backgroundColor: m.accent }]} />}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </StaggerItem>
 
-          {/* Macro bars card */}
-          <StaggerItem delay={200}>
-            <View style={s.macroCard}>
-              <View style={s.macroCardHeader}>
-                <Text weight="700" style={s.macroCardTitle}>
-                  Macros Today
-                </Text>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate("NutritionDietDash")}
-                  style={s.macroCardLink}
-                  activeOpacity={0.7}
-                >
-                  <Text weight="600" style={s.macroCardLinkTxt}>
-                    Details
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <View style={s.macroSeparator} />
-              <MacroBar
-                label="Protein"
-                current={totalProtein}
-                max={macroTargets.protein}
-                color={C.blue}
-                lightBg={C.blueLight}
-              />
-              <MacroBar
-                label="Carbs"
-                current={totalCarbs}
-                max={macroTargets.carbs}
-                color={C.emerald}
-                lightBg={C.emeraldLight}
-              />
-              <MacroBar
-                label="Fats"
-                current={totalFat}
-                max={macroTargets.fat}
-                color={C.orange}
-                lightBg={C.orangeLight}
-              />
+          {/* Logged items for active tab */}
+          <StaggerItem delay={160}>
+            <View style={s.mealItemsWrap}>
+              {(mealTray[activeMealTab] || []).length === 0 ? (
+                <View style={s.mealEmptyWrap}>
+                  <Feather name="inbox" size={22} color={C.textMuted} />
+                  <Text style={s.mealEmptyTxt}>Nothing logged for {activeMealTab} yet</Text>
+                </View>
+              ) : (
+                <>
+                  {(mealTray[activeMealTab] || []).map((item, i) => (
+                    <View key={i} style={s.mealLogItem}>
+                      <View style={s.mealLogDot} />
+                      <View style={{ flex: 1 }}>
+                        <Text weight="600" style={s.mealLogName}>{item.name}</Text>
+                        <Text style={s.mealLogMeta}>
+                          {(item.calories || 0) * (item.quantity || 1)} kcal · {item.quantity || 1}×
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                  <TouchableOpacity
+                    style={s.viewPlateBtn}
+                    onPress={() => navigation.navigate("NutritionPlate", { mealType: activeMealTab })}
+                    activeOpacity={0.85}
+                  >
+                    <LinearGradient
+                      colors={["#93D056", "#35A329"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={s.viewPlateBtnInner}
+                    >
+                      <Text weight="700" style={s.viewPlateBtnTxt}>View Plate</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </StaggerItem>
         </>
       )}
 
-
-
-
-
-      {/* Meal type grid */}
-      <StaggerItem delay={isGoalSet ? 340 : 240}>
-        <View style={s.mealGrid}>
-          {MEAL_META.map((item) => (
-            <PressScale
-              key={item.title}
-              style={[s.mealCard, !isGoalSet && { opacity: 0.42 }]}
-              onPress={() => {
-                if (!isGoalSet) {
-                  navigation.navigate("NutritionSetGoal");
-                  return;
-                }
-                navigation.navigate("NutritionAddDiet", {
-                  mealType: item.title,
-                });
-              }}
-            >
-              <View style={[s.mealCardInner, { backgroundColor: item.bg }]}>
-                {/* SVG in tinted icon bubble */}
-                <View
-                  style={[s.mealIconBubble, { backgroundColor: item.iconBg }]}
-                >
-                  <item.img
-                    width={isSmall ? 28 : 34}
-                    height={isSmall ? 28 : 34}
-                  />
-                </View>
-                <Text weight="700" style={s.mealName}>
-                  {item.title}
-                </Text>
-                <View style={s.mealAddRow}>
-                  <View
-                    style={[s.mealAddBubble, { backgroundColor: item.accent }]}
-                  >
-                    <Feather name="plus" size={11} color="#fff" />
-                  </View>
-                  <Text
-                    weight="600"
-                    style={[s.mealAddTxt, { color: item.accent }]}
-                  >
-                    Add food
-                  </Text>
-                </View>
-              </View>
-            </PressScale>
-          ))}
-        </View>
+      {/* ══════════════════════════════════════
+          WEEKLY NUTRITION TREND + INSIGHTS
+      ══════════════════════════════════════ */}
+      <StaggerItem delay={isGoalSet ? 220 : 160}>
+        <SectionHead
+          title="This Week"
+          action={() => navigation.navigate("NutritionStats")}
+          actionLabel="View Stats"
+        />
       </StaggerItem>
 
-      {/* Consult banner */}
-      <StaggerItem delay={isGoalSet ? 380 : 280}>
+      <WeeklyNutritionTrend
+        goalCalories={goalCalories}
+        macroTargets={macroTargets}
+      />
+
+      {/* ══════════════════════════════════════
+          CONSULT BANNER
+      ══════════════════════════════════════ */}
+      <StaggerItem delay={isGoalSet ? 320 : 240}>
         <View style={s.consultPad}>
           <PressScale onPress={() => navigation.navigate("Consultation")}>
             <LinearGradient
@@ -677,6 +835,58 @@ const NutritionHomeRN = () => {
           </PressScale>
         </View>
       </StaggerItem>
+      {/* Meal Type Picker Modal */}
+<Modal
+  visible={showMealPicker}
+  transparent
+  animationType="slide"
+  onRequestClose={() => setShowMealPicker(false)}
+>
+  <TouchableOpacity
+    style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+    activeOpacity={1}
+    onPress={() => setShowMealPicker(false)}
+  />
+  <View style={{
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+  }}>
+    <Text weight="700" style={{ fontSize: 17, color: C.text, marginBottom: 16 }}>
+      What meal are you logging?
+    </Text>
+    {MEAL_META.map((m) => (
+      <TouchableOpacity
+        key={m.title}
+        onPress={() => {
+          setShowMealPicker(false);
+          navigation.navigate("NutritionAddDiet", { mealType: m.title });
+        }}
+        activeOpacity={0.8}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 14,
+          paddingVertical: 14,
+          borderBottomWidth: 1,
+          borderBottomColor: C.border,
+        }}
+      >
+        <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: m.iconBg, alignItems: "center", justifyContent: "center" }}>
+          <m.img width={26} height={26} />
+        </View>
+        <Text weight="600" style={{ fontSize: 15, color: C.text, flex: 1 }}>{m.title}</Text>
+        <Feather name="chevron-right" size={16} color={C.textMuted} />
+      </TouchableOpacity>
+    ))}
+  </View>
+</Modal>
     </ScrollView>
   );
 };
@@ -687,16 +897,15 @@ export default NutritionHomeRN;
 // STYLES
 // ─────────────────────────────────────────────
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
+  container: { flex: 1, backgroundColor: "#ffffff" },
 
   // ── Hero ──────────────────────────────────
   hero: {
-    paddingTop: 160,
+    paddingTop: 140,
     paddingHorizontal: 20,
-    paddingBottom: 24,
-    overflow: "hidden"
+    paddingBottom: 16,
+    overflow: "hidden",
   },
-  // Decorative background circles
   heroBubble1: {
     position: "absolute",
     width: 220,
@@ -753,11 +962,12 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  heroIdleTitle: {
-    fontSize: isSmall ? 22 : 26,
-    color: "#fff",
-    textAlign: "center",
-  },
+heroIdleTitle: {
+  fontSize: isSmall ? 20 : 24,
+  color: "#1A5C0F",
+  textAlign: "center",
+  lineHeight: 32,
+},
   heroIdleSub: {
     fontSize: 14,
     color: "rgba(255,255,255,0.68)",
@@ -765,11 +975,11 @@ const s = StyleSheet.create({
   },
 
   // Calorie ring
-  ringSection: { 
-    flexDirection: "row", 
-    alignItems: "center", 
-    justifyContent: "center", 
-    gap: 8, 
+  ringSection: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
     zIndex: 2,
     paddingHorizontal: 8,
   },
@@ -791,7 +1001,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 20,
-    bbackgroundColor: "rgba(13,92,48,0.12)",
+    backgroundColor: "rgba(13,92,48,0.12)",
   },
   ringPctTxt: { fontSize: 11, color: "#0D5C30" },
   editGoalBtn: {
@@ -870,6 +1080,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 10,
+    backgroundColor: "#ffffff",
   },
   sectionTitle: { fontSize: isSmall ? 16 : 18, color: C.text },
   sectionAction: { flexDirection: "row", alignItems: "center", gap: 2 },
@@ -1011,40 +1222,6 @@ const s = StyleSheet.create({
   scanCardSub: { color: "rgba(255,255,255,0.62)", fontSize: 11 },
   scanArrow: { marginLeft: "auto" },
 
-  // ── Meal grid ─────────────────────────────
-  mealGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    paddingHorizontal: 16,
-    gap: 10,
-    marginTop: 4,
-  },
-  mealCard: { width: (width - 42) / 2 },
-  mealCardInner: {
-    borderRadius: 18,
-    padding: isSmall ? 12 : 14,
-    borderWidth: 1,
-    borderColor: C.border,
-    gap: 8,
-  },
-  mealIconBubble: {
-    width: isSmall ? 46 : 54,
-    height: isSmall ? 46 : 54,
-    borderRadius: isSmall ? 14 : 16,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mealName: { fontSize: isSmall ? 14 : 15, color: C.text },
-  mealAddRow: { flexDirection: "row", alignItems: "center", gap: 5 },
-  mealAddBubble: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mealAddTxt: { fontSize: 12 },
-
   // ── Consult banner ────────────────────────
   consultPad: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 32 },
   consultCard: {
@@ -1079,6 +1256,8 @@ const s = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
+
+  // ── Mini macro bars (ring section) ───────
   macroSide: { width: 75, gap: 10, alignItems: "center" },
   miniMacro: { width: 65, gap: 3 },
   miniMacroLabelRow: { flexDirection: "column", gap: 1 },
@@ -1086,27 +1265,232 @@ const s = StyleSheet.create({
   miniMacroVal: { fontSize: 8, color: "rgba(0,0,0,0.65)" },
   miniTrack: { height: 12, backgroundColor: "rgba(255,255,255,0.6)", borderRadius: 8, overflow: "hidden" },
   miniFill: { height: "100%", borderRadius: 8 },
+
+  // ── Quick action row ─────────────────────
   quickRow: {
-  flexDirection: "row",
-  paddingHorizontal: 16,
-  gap: 8,
-  marginTop: 16,
-  marginBottom: 8,
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 0,
+    justifyContent: "space-between",
+  },
+  quickCard: {
+    flex: 1,
+    height: 90,
+    borderRadius: 10,
+    overflow: "hidden",
+    padding: 10,
+    justifyContent: "center",
+    gap: 2,
+  },
+  quickTitle: { fontSize: 14, fontWeight: "700" },
+  quickSub: { fontSize: 8 },
+
+  // ── Meal tabs ────────────────────────────
+  mealTabRow: {
+    paddingLeft: 16,
+    paddingRight: 16,
+    gap: 8,
+    paddingBottom: 4,
+  },
+  mealTab: {
+    alignItems: "center",
+    paddingBottom: 8,
+    paddingHorizontal: 6,
+    position: "relative",
+    minWidth: 72,
+  },
+  mealTabIconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  mealTabLabel: { fontSize: 13, color: C.textSub },
+  mealTabCal: { fontSize: 10, marginTop: 2 },
+  mealTabIndicator: {
+    position: "absolute",
+    bottom: 0,
+    left: 6,
+    right: 6,
+    height: 3,
+    borderRadius: 2,
+  },
+
+  // ── Meal log items ────────────────────────
+  mealItemsWrap: {
+    marginHorizontal: 16,
+    marginTop: 10,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: "hidden",
+  },
+  mealEmptyWrap: {
+    alignItems: "center",
+    paddingVertical: 24,
+    gap: 8,
+  },
+  mealEmptyTxt: { fontSize: 13, color: C.textMuted },
+  mealEmptyBtn: {
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: C.primaryGhost,
+  },
+  mealEmptyBtnTxt: { fontSize: 13, color: C.primary },
+  mealLogItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    gap: 10,
+  },
+  mealLogDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.primary,
+  },
+  mealLogName: { fontSize: 14, color: C.text },
+  mealLogMeta: { fontSize: 12, color: C.textMuted, marginTop: 2 },
+  viewPlateBtn: {
+    alignSelf: "center",
+    marginVertical: 12,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  viewPlateBtnInner: {
+    paddingVertical: 10,
+    paddingHorizontal: 28,
+    alignItems: "center",
+  },
+  viewPlateBtnTxt: { color: "#fff", fontSize: 14 },
+});
+
+// ─────────────────────────────────────────────
+// WEEKLY TREND STYLES
+// ─────────────────────────────────────────────
+const wt = StyleSheet.create({
+  card: {
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    marginHorizontal: 16,
+    marginTop: 4,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  title: { fontSize: 16, color: C.text },
+  viewBtn: { flexDirection: "row", alignItems: "center", gap: 3 },
+  viewTxt: { fontSize: 13, color: C.primary },
+
+  chartArea: { flexDirection: "row", alignItems: "flex-end" },
+  yAxis: {
+    width: 36,
+    height: 140,
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingRight: 6,
+    paddingBottom: 20,
+  },
+  yLabel: { fontSize: 9, color: C.textMuted },
+
+  barsRow: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  },
+  barCol: { alignItems: "center", flex: 1 },
+  barWrap: {
+    justifyContent: "flex-end",
+    alignItems: "center",
+    position: "relative",
+  },
+  barStack: {
+    width: 22,
+    justifyContent: "flex-end",
+    borderRadius: 5,
+    overflow: "hidden",
+  },
+  seg: { width: "100%" },
+  goalLine: {
+    position: "absolute",
+    left: -2,
+    right: -2,
+    height: 1.5,
+    backgroundColor: "#FF6B6B",
+    borderRadius: 1,
+  },
+  dayLabel: { fontSize: 10, color: C.textMuted, marginTop: 5 },
+  todayDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: C.primary,
+    marginTop: 2,
+  },
+
+  legend: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 14,
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 5 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  goalLineLegend: {
+    width: 14,
+    height: 2,
+    backgroundColor: "#FF6B6B",
+    borderRadius: 1,
+  },
+  legendTxt: { fontSize: 11, color: C.textSub },
+
+  // Insight card
+  insightCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 18,
+    overflow: "hidden",
+  },
+  insightGrad: { padding: 18, borderRadius: 18 },
+  insightTitle: { fontSize: 15, color: "#4B2D8F", marginBottom: 10 },
+  insightTxt: { fontSize: 13, color: "#5A4080", marginBottom: 4, lineHeight: 18 },
+  insightBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 28,
+    borderRadius: 20,
+  },
+  insightBtnTxt: { color: "#fff", fontSize: 13 },
+  heroIdleBtn: {
+  paddingVertical: 12,
+  paddingHorizontal: 40,
+  borderRadius: 25,
+  marginTop: 8,
 },
-quickCard: {
-  flex: 1,
-  height: 62,
-  borderRadius: 10,
-  overflow: "hidden",
-  padding: 10,
-  justifyContent: "center",
-  gap: 2,
-},
-quickTitle: {
-  fontSize: 14,
-  fontWeight: "700",
-},
-quickSub: {
-  fontSize: 8,
+heroIdleBtnTxt: {
+  color: "#fff",
+  fontSize: 15,
 },
 });
