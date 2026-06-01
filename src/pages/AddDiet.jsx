@@ -2,6 +2,7 @@
  * AddDiet.jsx — Redesigned to match screenshot
  * Simple white header, search with mic, Quick Daily Logs grid,
  * Add Custom Food bottom bar. All logic preserved.
+ * + Nutrition grade bottom tray on NutriScaleRow tap
  */
 
 import React, { useEffect, useMemo, useState, useRef } from "react";
@@ -16,6 +17,7 @@ import {
   Animated,
   ActivityIndicator,
   StatusBar,
+  Modal,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -52,7 +54,6 @@ const MEAL_COLOR = {
   Dinner:    "#9333EA",
 };
 
-// Soft pastel card backgrounds for Quick Daily Logs grid
 const CARD_COLORS = [
   "#fff", "#fff", "#fff", "#fff",
   "#fff", "#fff", "#fff", "#fff",
@@ -115,7 +116,6 @@ const QuickLogCard = ({ food, index, onAdd }) => {
       onPress={onAdd}
       activeOpacity={0.8}
     >
-      {/* Placeholder illustration area */}
       <View style={s.quickCardImg} />
       <Text weight="600" style={s.quickCardName} numberOfLines={2}>
         {food.name}
@@ -127,49 +127,176 @@ const QuickLogCard = ({ food, index, onAdd }) => {
   );
 };
 
-// ── Search result / catalogue card ───────────
-const CatalogueCard = ({ food, onAdd }) => (
-  <PressScale onPress={onAdd}>
-    <View style={s.catCard}>
-      <View style={s.catCardInner}>
-        <View style={s.catCardLeft}>
-          <Text weight="700" style={s.catCardName} numberOfLines={1}>
-            {food.name}
-          </Text>
-          <Text style={s.catCardServing}>{food.serving}</Text>
-          <View style={s.catCardMacros}>
-            <MiniMacro label="P" value={toNumber(food.protein).toFixed(1)}  color={C.blue}    bg={C.blueLight}    />
-            <MiniMacro label="C" value={toNumber(food.carbs).toFixed(1)}    color={C.emerald} bg={C.emeraldLight} />
-            <MiniMacro label="F" value={toNumber(food.fats ?? food.fat).toFixed(1)} color={C.orange}  bg={C.orangeLight}  />
+// ── Nutrition grade scale + logic ─────────────
+const CAT_GRADES = [
+  { grade: "A", bg: "#16A34A", dimBg: "#D1FAE5", dimText: "#6EE7B7" },
+  { grade: "B", bg: "#65A30D", dimBg: "#ECFCCB", dimText: "#A3E635" },
+  { grade: "C", bg: "#F59E0B", dimBg: "#FEF3C7", dimText: "#FCD34D" },
+  { grade: "D", bg: "#EA580C", dimBg: "#FFEDD5", dimText: "#FDBA74" },
+  { grade: "E", bg: "#DC2626", dimBg: "#FEE2E2", dimText: "#FCA5A5" },
+];
+
+const getCatNutritionGrade = (food) => {
+  const cal  = toNumber(food.calories);
+  const prot = toNumber(food.protein);
+  const carb = toNumber(food.carbs);
+  const fat  = toNumber(food.fat ?? food.fats ?? 0);
+  if (cal === 0) return "C";
+  const protKcal   = prot * 4;
+  const carbKcal   = carb * 4;
+  const fatKcal    = fat  * 9;
+  const proteinPct = (protKcal / cal) * 100;
+  const carbPct    = (carbKcal / cal) * 100;
+  const fatPct     = (fatKcal  / cal) * 100;
+  const score = 70 + Math.min(proteinPct * 0.6, 30) - Math.max(0, carbPct - 40) - Math.max(0, fatPct - 30);
+  if (score >= 85) return "A";
+  if (score >= 70) return "B";
+  if (score >= 55) return "C";
+  if (score >= 40) return "D";
+  return "E";
+};
+
+const NutriScaleRow = ({ food }) => {
+  const activeGrade = getCatNutritionGrade(food);
+  return (
+    <View style={s.nutriScaleRow}>
+      {CAT_GRADES.map((g) => {
+        const isActive = g.grade === activeGrade;
+        return (
+          <View
+            key={g.grade}
+            style={[
+              s.nutriScaleItem,
+              isActive
+                ? { backgroundColor: g.bg, transform: [{ scale: 1.25 }], zIndex: 2 }
+                : { backgroundColor: g.dimBg },
+            ]}
+          >
+            <Text
+              weight={isActive ? "800" : "600"}
+              style={{ fontSize: isActive ? 11 : 9, color: isActive ? "#fff" : g.dimText }}
+            >
+              {g.grade}
+            </Text>
           </View>
-        </View>
-        <View style={s.catCardRight}>
-          <View style={s.catCalBadge}>
-            <Text weight="800" style={s.catCalVal}>{food.calories}</Text>
-            <Text style={s.catCalUnit}>kcal</Text>
-          </View>
-          <View style={s.catAddBtn}>
-            <Ionicons name="add" size={16} color="#fff" />
-          </View>
-        </View>
-      </View>
+        );
+      })}
     </View>
-  </PressScale>
-);
+  );
+};
+
+// ── Catalogue card with grade tray ────────────
+const CatalogueCard = ({ food, onAdd }) => {
+  const [gradeModal, setGradeModal] = useState(false);
+  const grade     = getCatNutritionGrade(food);
+  const gradeInfo = CAT_GRADES.find(g => g.grade === grade);
+
+  const cal      = toNumber(food.calories);
+  const protKcal = toNumber(food.protein) * 4;
+  const carbKcal = toNumber(food.carbs)   * 4;
+  const fatKcal  = toNumber(food.fats ?? food.fat ?? 0) * 9;
+  const protPct  = cal > 0 ? Math.round((protKcal / cal) * 100) : 0;
+  const carbPct  = cal > 0 ? Math.round((carbKcal / cal) * 100) : 0;
+  const fatPct   = cal > 0 ? Math.round((fatKcal  / cal) * 100) : 0;
+
+  const reasons = [
+    protPct >= 30
+      ? { icon: "✅", text: `High protein — ${protPct}% of calories` }
+      : { icon: "⚠️", text: `Low protein — only ${protPct}% of calories` },
+    carbPct > 40
+      ? { icon: "⚠️", text: `High carbs — ${carbPct}% of calories` }
+      : { icon: "✅", text: `Carbs in range — ${carbPct}% of calories` },
+    fatPct > 30
+      ? { icon: "⚠️", text: `High fat — ${fatPct}% of calories` }
+      : { icon: "✅", text: `Fat in range — ${fatPct}% of calories` },
+  ];
+
+  return (
+    <>
+      <PressScale onPress={onAdd}>
+        <View style={s.catCard}>
+          <View style={s.catCardInner}>
+            <View style={s.catCardLeft}>
+              <Text weight="700" style={s.catCardName} numberOfLines={1}>
+                {food.name}
+              </Text>
+              <Text style={s.catCardServing}>{food.serving}</Text>
+              <View style={s.catCardMacros}>
+                <MiniMacro label="P" value={toNumber(food.protein).toFixed(1)}           color={C.blue}    bg={C.blueLight}    />
+                <MiniMacro label="C" value={toNumber(food.carbs).toFixed(1)}             color={C.emerald} bg={C.emeraldLight} />
+                <MiniMacro label="F" value={toNumber(food.fats ?? food.fat).toFixed(1)} color={C.orange}  bg={C.orangeLight}  />
+              </View>
+              {/* Tappable grade scale */}
+              <TouchableOpacity onPress={() => setGradeModal(true)} activeOpacity={0.75}>
+                <NutriScaleRow food={food} />
+              </TouchableOpacity>
+            </View>
+            <View style={s.catCardRight}>
+              <View style={s.catCalBadge}>
+                <Text weight="800" style={s.catCalVal}>{food.calories}</Text>
+                <Text style={s.catCalUnit}>kcal</Text>
+              </View>
+              <View style={s.catAddBtn}>
+                <Ionicons name="add" size={16} color="#fff" />
+              </View>
+            </View>
+          </View>
+        </View>
+      </PressScale>
+
+      {/* Grade bottom tray */}
+      <Modal
+        visible={gradeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setGradeModal(false)}
+      >
+        <TouchableOpacity
+          style={s.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setGradeModal(false)}
+        >
+          <View style={s.modalCard} onStartShouldSetResponder={() => true}>
+            <View style={s.modalHandle} />
+            <Text weight="700" style={s.modalTitle}>Nutrition Score</Text>
+            <View style={[s.modalGradeHighlight, { backgroundColor: gradeInfo?.bg }]}>
+              <Text weight="800" style={s.modalGradeLetter}>{grade}</Text>
+            </View>
+            <View style={s.modalReasonCard}>
+              {reasons.map((r, i) => (
+                <View key={i} style={s.modalReasonRow}>
+                  <Text style={s.modalReasonIcon}>{r.icon}</Text>
+                  <Text style={s.modalReasonTxt}>{r.text}</Text>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={s.modalCloseBtn}
+              activeOpacity={0.85}
+              onPress={() => setGradeModal(false)}
+            >
+              <Text weight="700" style={s.modalCloseTxt}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </>
+  );
+};
 
 // ─────────────────────────────────────────────
 // MAIN SCREEN
 // ─────────────────────────────────────────────
 const AddDietRN = () => {
   const navigation = useNavigation();
-  const route     = useRoute();
-  const mealType  = normalizeMealType(route.params?.mealType);
-  const accent    = MEAL_COLOR[mealType] || C.primary;
+  const route      = useRoute();
+  const mealType   = normalizeMealType(route.params?.mealType);
+  const accent     = MEAL_COLOR[mealType] || C.primary;
 
-  const [searchQuery,   setSearchQuery]   = useState("");
-  const [recentFoods,   setRecentFoods]   = useState([]);
-  const [selectedFood,  setSelectedFood]  = useState(null);
-  const [mealTray,      setMealTray]      = useState([]);
+  const [searchQuery,    setSearchQuery]    = useState("");
+  const [recentFoods,    setRecentFoods]    = useState([]);
+  const [selectedFood,   setSelectedFood]   = useState(null);
+  const [mealTray,       setMealTray]       = useState([]);
   const [activeCategory, setActiveCategory] = useState(MEAL_TO_CATEGORY[mealType] || "all");
   const [searchResults,  setSearchResults]  = useState([]);
   const [searchLoading,  setSearchLoading]  = useState(false);
@@ -249,7 +376,7 @@ const AddDietRN = () => {
     await AsyncStorage.setItem(key, JSON.stringify(ex));
   };
 
-  const updateMealTray      = async (t) => { setMealTray(t); await saveNutritionLog(t); };
+  const updateMealTray       = async (t) => { setMealTray(t); await saveNutritionLog(t); };
   const handleRemoveFromTray = async (i) => updateMealTray(mealTray.filter((_, idx) => idx !== i));
 
   // ── Search ────────────────────────────────────
@@ -306,7 +433,7 @@ const AddDietRN = () => {
         overScrollMode="never"
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingBottom: mealTray.length > 0 ? 100 : 100 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
       >
         {/* ══ HEADER ══════════════════════════════ */}
         <View style={s.header}>
@@ -353,7 +480,9 @@ const AddDietRN = () => {
           {isSearching && (
             <View style={s.section}>
               <Text weight="700" style={s.sectionTitle}>
-                {searchLoading ? "Searching..." : `${searchResults.length} result${searchResults.length !== 1 ? "s" : ""} for "${searchQuery}"`}
+                {searchLoading
+                  ? "Searching..."
+                  : `${searchResults.length} result${searchResults.length !== 1 ? "s" : ""} for "${searchQuery}"`}
               </Text>
               {searchLoading ? (
                 <View style={s.centeredPad}>
@@ -374,7 +503,7 @@ const AddDietRN = () => {
           {/* ══ NON-SEARCH CONTENT ══════════════════ */}
           {!isSearching && (
             <>
-              {/* ── In tray (if items logged) ── */}
+              {/* ── In tray ── */}
               {mealTray.length > 0 && (
                 <View style={s.section}>
                   <View style={s.sectionRow}>
@@ -430,18 +559,17 @@ const AddDietRN = () => {
                 </View>
               )}
 
-              {/* ── Quick Daily Logs grid ── */}
+              {/* ── Quick Daily Logs ── */}
               <View style={s.section}>
                 <Text weight="700" style={s.sectionTitle}>Quick Daily Logs</Text>
                 {recentFoods.length === 0 ? (
                   <EmptyHint icon="clock" text="Foods you log often will appear here." />
                 ) : (
-                  <View style={s.quickGrid}>
-                    {recentFoods.map((f, i) => (
-                      <QuickLogCard
+                  <View style={s.catalogueList}>
+                    {recentFoods.slice(0, 3).map((f, i) => (
+                      <CatalogueCard
                         key={f.id || i}
                         food={f}
-                        index={i}
                         onAdd={() => setSelectedFood(f)}
                       />
                     ))}
@@ -489,23 +617,40 @@ const AddDietRN = () => {
 
       {/* ══ BOTTOM BAR ══════════════════════════ */}
       <View style={s.bottomBar}>
+        <View style={s.scanRow}>
+          <TouchableOpacity
+            style={s.bottomBtn}
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate("NutritionScan", { mealType })}
+          >
+            <Text weight="600" style={s.bottomBtnTxt}>Scan Food</Text>
+          </TouchableOpacity>
+          <View style={s.bottomDivider} />
+          <TouchableOpacity
+            style={s.bottomBtn}
+            activeOpacity={0.75}
+            onPress={() => navigation.navigate("NutritionBarcode", { mealType })}
+          >
+            <Text weight="600" style={s.bottomBtnTxt}>Scan Barcode</Text>
+          </TouchableOpacity>
+        </View>
+
         <Text style={s.bottomHint}>Didn't find what you were looking for?</Text>
         <TouchableOpacity
           style={s.customFoodBtn}
           activeOpacity={0.85}
           onPress={() => navigation.navigate("AddCustomFood", { mealType })}
         >
-            <LinearGradient
-              colors={["#93D056", "#35A329"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={s.customFoodBtnInner}
-            >
-          <Text weight="700" style={s.customFoodBtnTxt}>+ Add Custom Food</Text>
+          <LinearGradient
+            colors={["#93D056", "#35A329"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={s.customFoodBtnInner}
+          >
+            <Text weight="700" style={s.customFoodBtnTxt}>+ Add Custom Food</Text>
           </LinearGradient>
         </TouchableOpacity>
       </View>
-
 
       {/* ══ MEALINFO SHEET ══════════════════════ */}
       {selectedFood && (
@@ -588,8 +733,8 @@ const s = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, color: C.text },
 
   // ── Section ──
-  section:    { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 4 },
-  sectionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  section:      { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 4 },
+  sectionRow:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   sectionTitle: { fontSize: isSmall ? 15 : 16, color: C.text, marginBottom: 4 },
   sectionSub:   { fontSize: 11, color: C.textMuted, marginBottom: 10 },
   sectionLink:  { fontSize: 13, color: C.primary },
@@ -603,34 +748,21 @@ const s = StyleSheet.create({
     marginTop: 8,
   },
   quickCard: {
-    width: (width - 32 - 10) / 2,   // 2 columns with gap
+    width: (width - 32 - 10) / 2,
     borderRadius: 14,
     padding: 12,
     minHeight: 110,
-    backgroundColor: "#fff", 
+    backgroundColor: "#fff",
     justifyContent: "flex-end",
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-
     elevation: 2,
   },
-  quickCardImg: {
-    flex: 1,
-    minHeight: 48,
-  },
-  quickCardName: {
-    fontSize: 13,
-    color: "#333",
-    marginTop: 8,
-    lineHeight: 18,
-  },
-  quickCardCal: {
-    fontSize: 11,
-    color: C.textMuted,
-    marginTop: 3,
-  },
+  quickCardImg:  { flex: 1, minHeight: 48 },
+  quickCardName: { fontSize: 13, color: "#333", marginTop: 8, lineHeight: 18 },
+  quickCardCal:  { fontSize: 11, color: C.textMuted, marginTop: 3 },
 
   // ── In-tray card ──
   trayCard: {
@@ -651,11 +783,11 @@ const s = StyleSheet.create({
   trayMeta: { fontSize: 12, color: C.textMuted },
 
   // Qty controls
-  qtyRow:   { flexDirection: "row", alignItems: "center", gap: 4 },
-  qtyBtn:   { width: 26, height: 26, borderRadius: 8, backgroundColor: C.primary + "18", alignItems: "center", justifyContent: "center" },
-  qtyBtnTxt:{ color: C.primary, fontSize: 16, lineHeight: 18 },
-  qtyNum:   { minWidth: 22, textAlign: "center", fontSize: 14, color: C.text },
-  delBtn:   { marginLeft: 4, padding: 4 },
+  qtyRow:    { flexDirection: "row", alignItems: "center", gap: 4 },
+  qtyBtn:    { width: 26, height: 26, borderRadius: 8, backgroundColor: C.primary + "18", alignItems: "center", justifyContent: "center" },
+  qtyBtnTxt: { color: C.primary, fontSize: 16, lineHeight: 18 },
+  qtyNum:    { minWidth: 22, textAlign: "center", fontSize: 14, color: C.text },
+  delBtn:    { marginLeft: 4, padding: 4 },
 
   // ── Tab bar ──
   tabBar: {
@@ -676,8 +808,8 @@ const s = StyleSheet.create({
     backgroundColor: C.primary,
     borderRadius: 2,
   },
-  tab:        { height: 40, alignItems: "center", justifyContent: "center" },
-  tabTxt:     { fontSize: isSmall ? 11 : 12, color: C.textMuted },
+  tab:          { height: 40, alignItems: "center", justifyContent: "center" },
+  tabTxt:       { fontSize: isSmall ? 11 : 12, color: C.textMuted },
   tabTxtActive: { color: C.primary },
 
   // ── Catalogue cards ──
@@ -700,6 +832,8 @@ const s = StyleSheet.create({
   catCardMacros:  { flexDirection: "row", gap: 5 },
   miniMacro:      { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
   miniMacroTxt:   { fontSize: 10 },
+  nutriScaleRow:  { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 6, paddingVertical: 2 },
+  nutriScaleItem: { width: 18, height: 22, borderRadius: 4, alignItems: "center", justifyContent: "center" },
   catCardRight:   { alignItems: "center", gap: 8 },
   catCalBadge:    { alignItems: "center", backgroundColor: C.primaryGhost, borderRadius: 12, paddingVertical: 5, paddingHorizontal: 8, minWidth: 54 },
   catCalVal:      { fontSize: isSmall ? 15 : 17, color: C.primary },
@@ -718,7 +852,7 @@ const s = StyleSheet.create({
     right: 0,
     backgroundColor: "#fff",
     paddingHorizontal: 20,
-    paddingTop: 14,
+    paddingTop: 10,
     paddingBottom: Platform.OS === "ios" ? 30 : 18,
     borderTopWidth: 1,
     borderTopColor: "#F0F0F0",
@@ -728,26 +862,70 @@ const s = StyleSheet.create({
     shadowOffset: { width: 0, height: -3 },
     elevation: 6,
   },
-  bottomTrayRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  bottomLabel:   { fontSize: 12, color: C.textMuted },
-  bottomVal:     { fontSize: 18, color: C.text, marginTop: 2 },
-  doneBtn:       { borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 },
-  doneTxt:       { color: "#fff", fontSize: isSmall ? 14 : 15 },
+  scanRow:       { flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  bottomBtn:     { flex: 1, alignItems: "center", paddingVertical: 6 },
+  bottomBtnTxt:  { fontSize: 14, color: "#35A329" },
+  bottomDivider: { width: 1, height: 20, backgroundColor: "#E0E0E0" },
+  bottomHint:    { fontSize: 13, color: C.textMuted, textAlign: "center", marginBottom: 12 },
+  customFoodBtn: { borderRadius: 14, overflow: "hidden" },
+  customFoodBtnInner: { paddingVertical: 14, alignItems: "center", alignSelf: "stretch" },
+  customFoodBtnTxt:   { color: "#fff", fontSize: 15 },
 
-  bottomHint: {
-    fontSize: 13,
-    color: C.textMuted,
-    textAlign: "center",
-    marginBottom: 12,
+  // ── Nutrition grade bottom tray ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
   },
-  customFoodBtn: {
-    borderRadius: 14,
-    overflow: "hidden",  // ← replaces backgroundColor
+  modalCard: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 22,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    width: "100%",
+    maxHeight: "55%",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 10,
   },
-  customFoodBtnInner: {
-    paddingVertical: 14,
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E0E0E0",
+    alignSelf: "center",
+    marginBottom: 16,
+  },
+  modalTitle: { fontSize: 17, color: "#1A1A1A", marginBottom: 14 },
+  modalGradeHighlight: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     alignItems: "center",
-    alignSelf: "stretch",
+    justifyContent: "center",
+    alignSelf: "center",
+    marginBottom: 16,
   },
-  customFoodBtnTxt: { color: "#fff", fontSize: 15 },
+  modalGradeLetter: { fontSize: 28, color: "#fff" },
+  modalReasonCard: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+    marginBottom: 8,
+  },
+  modalReasonRow:  { flexDirection: "row", alignItems: "center", gap: 10 },
+  modalReasonIcon: { fontSize: 16 },
+  modalReasonTxt:  { fontSize: 13, color: "#333", flex: 1, lineHeight: 18 },
+  modalCloseBtn: {
+    marginTop: 12,
+    backgroundColor: "#553FB5",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  modalCloseTxt: { color: "#fff", fontSize: 14 },
 });

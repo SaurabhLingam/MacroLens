@@ -285,6 +285,67 @@ const MacroLabel = ({ label, value, color }) => (
   </View>
 );
 
+// ── Nutri-score scale ──────────────────────────
+const BC_GRADES = [
+  { grade: "A", bg: "#16A34A", dimBg: "#D1FAE5", dimText: "#6EE7B7" },
+  { grade: "B", bg: "#65A30D", dimBg: "#ECFCCB", dimText: "#A3E635" },
+  { grade: "C", bg: "#F59E0B", dimBg: "#FEF3C7", dimText: "#FCD34D" },
+  { grade: "D", bg: "#EA580C", dimBg: "#FFEDD5", dimText: "#FDBA74" },
+  { grade: "E", bg: "#DC2626", dimBg: "#FEE2E2", dimText: "#FCA5A5" },
+];
+
+const getBarcodeNutritionGrade = (food) => {
+  const cal  = toNumber(food.calories);
+  const prot = toNumber(food.protein);
+  const carb = toNumber(food.carbs);
+  const fat  = toNumber(food.fat);
+  if (cal === 0) return "C";
+  const protKcal = prot * 4;
+  const carbKcal = carb * 4;
+  const fatKcal  = fat  * 9;
+  const proteinPct = (protKcal / cal) * 100;
+  const carbPct    = (carbKcal / cal) * 100;
+  const fatPct     = (fatKcal  / cal) * 100;
+  const score = 70 + Math.min(proteinPct * 0.6, 30) - Math.max(0, carbPct - 40) - Math.max(0, fatPct - 30);
+  if (score >= 85) return "A";
+  if (score >= 70) return "B";
+  if (score >= 55) return "C";
+  if (score >= 40) return "D";
+  return "E";
+};
+
+const BarcodeNutriScale = ({ food }) => {
+  const activeGrade = getBarcodeNutritionGrade(food);
+  return (
+    <View style={bs.nutriScaleWrap}>
+      <Text style={bs.nutriScaleLabel}>Nutrition Score</Text>
+      <View style={bs.nutriScaleRow}>
+        {BC_GRADES.map((g) => {
+          const isActive = g.grade === activeGrade;
+          return (
+            <View
+              key={g.grade}
+              style={[
+                bs.nutriScaleItem,
+                isActive
+                  ? { backgroundColor: g.bg, transform: [{ scale: 1.25 }], zIndex: 2 }
+                  : { backgroundColor: g.dimBg },
+              ]}
+            >
+              <Text
+                weight={isActive ? "800" : "600"}
+                style={{ fontSize: isActive ? 11 : 9, color: isActive ? "#fff" : g.dimText }}
+              >
+                {g.grade}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+};
+
 // ── Meal type tab ──────────────────────────────
 const MEAL_TABS = ["Breakfast", "Lunch", "Snacks", "Dinner"];
 
@@ -692,7 +753,8 @@ const BarcodeScanner = () => {
               color="#F97316"
             />
           </View>
-
+          {/* Nutri-score */}
+          <BarcodeNutriScale food={scannedFood} />
           {/* Divider */}
           <View style={bs.divider} />
 
@@ -1048,6 +1110,10 @@ const bs = StyleSheet.create({
 
   // ── Divider ──
   divider: { height: 1, backgroundColor: "#F0F0F0", marginBottom: 14 },
+  nutriScaleWrap:  { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 14 },
+  nutriScaleLabel: { fontSize: 12, color: "#888" },
+  nutriScaleRow:   { flexDirection: "row", alignItems: "center", gap: 2, paddingVertical: 2 },
+  nutriScaleItem:  { width: 18, height: 22, borderRadius: 4, alignItems: "center", justifyContent: "center" },
 
   // ── Meal tabs ──
   mealTabs: {

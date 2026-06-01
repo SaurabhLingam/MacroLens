@@ -52,9 +52,10 @@ function ActiveTabConnector({ activeIndex, tabLayouts, bgColor }) {
   );
 }
 
-export default function WellnessScreen({ navigation }) {
+export default function WellnessScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const [activeIndex, setActiveIndex] = useState(0);
+  const initialTab = route?.params?.initialTab ?? 0;
+  const [activeIndex, setActiveIndex] = useState(initialTab);
   const [tabLayouts, setTabLayouts] = useState({});
   const pagerRef = useRef(null);
   const tabScrollRef = useRef(null);
@@ -191,7 +192,7 @@ export default function WellnessScreen({ navigation }) {
       <PagerView
         ref={pagerRef}
         style={{ flex: 1}}
-        initialPage={0}
+        initialPage={initialTab}
         onPageSelected={(e) => {
           const index = e.nativeEvent.position;
           setActiveIndex(index);

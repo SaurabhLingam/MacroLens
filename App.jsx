@@ -43,7 +43,7 @@ export default function App() {
       try {
         const goalSet = await AsyncStorage.getItem(GOAL_KEY);
         if (!mounted) return;
-        setInitialRouteName(goalSet ? "Wellness" : "NutritionSetGoal");
+        setInitialRouteName("Wellness");
       } catch {
         if (!mounted) return;
         setInitialRouteName("NutritionSetGoal");

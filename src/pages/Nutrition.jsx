@@ -296,12 +296,11 @@ const WeeklyNutritionTrend = ({ goalCalories, macroTargets }) => {
           <View style={wt.header}>
             <Text weight="700" style={wt.title}>Weekly Nutrition Trend</Text>
             <TouchableOpacity
-              onPress={() => navigation.navigate("NutritionStats")}
+              onPress={() => navigation.navigate("NutritionHistory")}
               activeOpacity={0.7}
               style={wt.viewBtn}
             >
-              <Text weight="600" style={wt.viewTxt}>View Stats</Text>
-              <Feather name="arrow-right" size={13} color={C.primary} />
+
             </TouchableOpacity>
           </View>
 
@@ -660,7 +659,7 @@ const NutritionHomeRN = () => {
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity
-                  onPress={() => navigation.navigate("NutritionSetGoal")}
+                  onPress={() => navigation.navigate("CalorieCalculator")}
                   activeOpacity={0.85}
                   style={{ marginTop: 12, width: "100%" }}
                 >
@@ -670,37 +669,6 @@ const NutritionHomeRN = () => {
           )}
         </LinearGradient>
       </Animated.View>
-
-      {/* ══════════════════════════════════════
-          GOAL BANNER  (no goal set)
-      ══════════════════════════════════════ */}
-      {!isGoalSet && (
-        <StaggerItem delay={100}>
-          <View style={s.goalBanner}>
-            <View style={s.goalBannerIcon}>
-              <NutritionSetGoalSVG width={48} height={48} />
-            </View>
-            <View style={s.goalBannerText}>
-              <Text weight="700" style={s.goalBannerTitle}>
-                Set your daily goal
-              </Text>
-              <Text style={s.goalBannerSub}>
-                Enable personalised nutrition tracking
-              </Text>
-            </View>
-            <PressScale onPress={() => navigation.navigate("NutritionSetGoal")}>
-              <LinearGradient
-                colors={[C.primaryLight, C.primaryDark]}
-                style={s.goalBannerBtn}
-              >
-                <Text weight="700" style={s.goalBannerBtnTxt}>
-                  Set Goal
-                </Text>
-              </LinearGradient>
-            </PressScale>
-          </View>
-        </StaggerItem>
-      )}
 
       {/* ══════════════════════════════════════
           TODAY'S MEALS  (goal set)
@@ -784,109 +752,110 @@ const NutritionHomeRN = () => {
               )}
             </View>
           </StaggerItem>
+
+          {/* ══════════════════════════════════════
+              WEEKLY NUTRITION TREND + INSIGHTS
+          ══════════════════════════════════════ */}
+          <StaggerItem delay={220}>
+            <SectionHead
+              title="This Week"
+              action={() => navigation.navigate("NutritionHistory")}
+              actionLabel="View Stats"
+            />
+          </StaggerItem>
+
+          <WeeklyNutritionTrend
+            goalCalories={goalCalories}
+            macroTargets={macroTargets}
+          />
+
+          {/* ══════════════════════════════════════
+              CONSULT BANNER
+          ══════════════════════════════════════ */}
+          <StaggerItem delay={320}>
+            <View style={s.consultPad}>
+              <PressScale onPress={() => navigation.navigate("Consultation")}>
+                <LinearGradient
+                  colors={[C.primaryDark, "#0D6633"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={s.consultCard}
+                >
+                  {/* Left content */}
+                  <View style={s.consultLeft}>
+                    <View style={s.consultIconWrap}>
+                      <Ionicons name="medkit-outline" size={20} color="#fff" />
+                    </View>
+                    <View>
+                      <Text weight="700" style={s.consultTitle}>
+                        Talk to a Dietitian
+                      </Text>
+                      <Text style={s.consultSub}>Get personalised guidance</Text>
+                    </View>
+                  </View>
+                  {/* Arrow */}
+                  <View style={s.consultArrow}>
+                    <Feather name="arrow-right" size={18} color="#fff" />
+                  </View>
+                </LinearGradient>
+              </PressScale>
+            </View>
+          </StaggerItem>
         </>
       )}
 
-      {/* ══════════════════════════════════════
-          WEEKLY NUTRITION TREND + INSIGHTS
-      ══════════════════════════════════════ */}
-      <StaggerItem delay={isGoalSet ? 220 : 160}>
-        <SectionHead
-          title="This Week"
-          action={() => navigation.navigate("NutritionStats")}
-          actionLabel="View Stats"
-        />
-      </StaggerItem>
-
-      <WeeklyNutritionTrend
-        goalCalories={goalCalories}
-        macroTargets={macroTargets}
-      />
-
-      {/* ══════════════════════════════════════
-          CONSULT BANNER
-      ══════════════════════════════════════ */}
-      <StaggerItem delay={isGoalSet ? 320 : 240}>
-        <View style={s.consultPad}>
-          <PressScale onPress={() => navigation.navigate("Consultation")}>
-            <LinearGradient
-              colors={[C.primaryDark, "#0D6633"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={s.consultCard}
-            >
-              {/* Left content */}
-              <View style={s.consultLeft}>
-                <View style={s.consultIconWrap}>
-                  <Ionicons name="medkit-outline" size={20} color="#fff" />
-                </View>
-                <View>
-                  <Text weight="700" style={s.consultTitle}>
-                    Talk to a Dietitian
-                  </Text>
-                  <Text style={s.consultSub}>Get personalised guidance</Text>
-                </View>
-              </View>
-              {/* Arrow */}
-              <View style={s.consultArrow}>
-                <Feather name="arrow-right" size={18} color="#fff" />
-              </View>
-            </LinearGradient>
-          </PressScale>
-        </View>
-      </StaggerItem>
       {/* Meal Type Picker Modal */}
-<Modal
-  visible={showMealPicker}
-  transparent
-  animationType="slide"
-  onRequestClose={() => setShowMealPicker(false)}
->
-  <TouchableOpacity
-    style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
-    activeOpacity={1}
-    onPress={() => setShowMealPicker(false)}
-  />
-  <View style={{
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-  }}>
-    <Text weight="700" style={{ fontSize: 17, color: C.text, marginBottom: 16 }}>
-      What meal are you logging?
-    </Text>
-    {MEAL_META.map((m) => (
-      <TouchableOpacity
-        key={m.title}
-        onPress={() => {
-          setShowMealPicker(false);
-          navigation.navigate("NutritionAddDiet", { mealType: m.title });
-        }}
-        activeOpacity={0.8}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 14,
-          paddingVertical: 14,
-          borderBottomWidth: 1,
-          borderBottomColor: C.border,
-        }}
+      <Modal
+        visible={showMealPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowMealPicker(false)}
       >
-        <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: m.iconBg, alignItems: "center", justifyContent: "center" }}>
-          <m.img width={26} height={26} />
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)" }}
+          activeOpacity={1}
+          onPress={() => setShowMealPicker(false)}
+        />
+        <View style={{
+          backgroundColor: "#fff",
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          padding: 24,
+          paddingBottom: 40,
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+        }}>
+          <Text weight="700" style={{ fontSize: 17, color: C.text, marginBottom: 16 }}>
+            What meal are you logging?
+          </Text>
+          {MEAL_META.map((m) => (
+            <TouchableOpacity
+              key={m.title}
+              onPress={() => {
+                setShowMealPicker(false);
+                navigation.navigate("NutritionAddDiet", { mealType: m.title });
+              }}
+              activeOpacity={0.8}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 14,
+                paddingVertical: 14,
+                borderBottomWidth: 1,
+                borderBottomColor: C.border,
+              }}
+            >
+              <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: m.iconBg, alignItems: "center", justifyContent: "center" }}>
+                <m.img width={26} height={26} />
+              </View>
+              <Text weight="600" style={{ fontSize: 15, color: C.text, flex: 1 }}>{m.title}</Text>
+              <Feather name="chevron-right" size={16} color={C.textMuted} />
+            </TouchableOpacity>
+          ))}
         </View>
-        <Text weight="600" style={{ fontSize: 15, color: C.text, flex: 1 }}>{m.title}</Text>
-        <Feather name="chevron-right" size={16} color={C.textMuted} />
-      </TouchableOpacity>
-    ))}
-  </View>
-</Modal>
+      </Modal>
     </ScrollView>
   );
 };
