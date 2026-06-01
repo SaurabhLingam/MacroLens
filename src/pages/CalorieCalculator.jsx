@@ -161,7 +161,7 @@ const WeightDial = ({ animatedKg }) => {
           strokeWidth={t.isMajor ? 2 : 1} strokeLinecap="round"
         />
       ))}
-      {ticks.filter(t => t.isMajor).map((t) => (
+       {ticks.filter(t => t.isMajor).map((t) => (
         <SvgText key={`lbl-${t.kg}`}
           x={t.lp.x} y={t.lp.y}
           textAnchor="middle" alignmentBaseline="middle"
@@ -170,6 +170,13 @@ const WeightDial = ({ animatedKg }) => {
           {t.kg}
         </SvgText>
       ))}
+      {/* Needle */}
+      <Line
+        x1={cx} y1={0}
+        x2={cx} y2={22}
+        stroke={PURPLE} strokeWidth={2.5} strokeLinecap="round"
+      />
+      <Circle cx={cx} cy={22} r={4} fill={PURPLE} />
     </Svg>
   );
 };
@@ -267,7 +274,12 @@ const CalorieCalculator = () => {
   const [heightIn, setHeightIn] = useState(66);
   const [ageVal,   setAgeVal]   = useState(25);
   const [activity, setActivity] = useState(2);
-  
+  const [calories, setCalories] = useState({ lose: null, maintain: null, gain: null });
+  useEffect(() => {
+    AsyncStorage.getItem("calculatedCaloriesData").then(data => {
+      if (data) setCalories(JSON.parse(data));
+    });
+  }, []);
 
   const animatedKg = useRef(new Animated.Value(55)).current;
 
@@ -419,6 +431,11 @@ const CalorieCalculator = () => {
     { label: "4'", pct: (48 - MIN_IN) / (MAX_IN - MIN_IN) },
   ];
 
+  const goalTabs = [
+    { key: "lose",     label: "To Lose Weight" },
+    { key: "maintain", label: "To Maintain" },
+    { key: "gain",     label: "To Gain Weight" },
+  ];
 
   // FIX: corrected activity labels — removed placeholder "2" and "4"
   const activityLabels = ["Sedentary", "Light", "Moderate", "Active", "Very Active"];
@@ -447,7 +464,23 @@ const CalorieCalculator = () => {
           </View>
         </View>
 
-
+        {/* ══ GOAL CARD ══ */}
+        <View style={s.goalCard}>
+          <Text weight="700" style={s.goalCardTitle}>Estimated Daily Calories</Text>
+          <View style={s.goalRow}>
+            {goalTabs.map(({ key, label }, idx) => (
+              <View key={key} style={[s.goalTab, idx < goalTabs.length - 1 && s.goalTabBorder]}>
+                <Text style={s.goalTabLabel} numberOfLines={2}>{label}</Text>
+                <Text weight="700" style={s.goalTabValue}>
+                  {calories[key] !== null ? calories[key] : "–"}
+                </Text>
+                {calories[key] !== null && (
+                  <Text style={s.goalTabUnit}>kcal</Text>
+                )}
+              </View>
+            ))}
+          </View>
+        </View>
 
         {/* ══ GENDER ══ */}
         <View style={s.genderWrap}>
@@ -687,10 +720,9 @@ const s = StyleSheet.create({
 
   genderWrap: {
     flexDirection: "row", marginHorizontal: 16, marginBottom: 14,
-    borderRadius: 12, borderWidth: StyleSheet.hairlineWidth,
-    borderColor: PURPLE_LITE, overflow: "hidden",
-    // subtle shadow
-    shadowColor: PURPLE, shadowOpacity: 0.06, shadowRadius: 6,
+    borderRadius: 12, borderWidth: 1.5,
+    borderColor: "#e0e0e0", overflow: "hidden",
+    shadowColor: "#fff", shadowOpacity: 0.06, shadowRadius: 6,
     shadowOffset: { width: 0, height: 1 }, elevation: 1,
   },
   genderBtn: { flex: 1, height: 42, alignItems: "center", justifyContent: "center" },
