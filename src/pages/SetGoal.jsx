@@ -241,7 +241,9 @@ const SetGoal = ({ route }) => {
     const load = async () => {
       try {
         const stored = await AsyncStorage.getItem("calculatedCaloriesData");
-        if (stored) setCalculatedCalories(JSON.parse(stored));
+        if (stored && !route?.params?.calculatedCalories) {
+          setCalculatedCalories(JSON.parse(stored));
+        }
 
         const goal = await AsyncStorage.getItem("calorieGoalData");
         if (goal) {

@@ -538,7 +538,7 @@ const NutritionHomeRN = () => {
           <FoodGroup
             width={width + 10}
             height={320}
-            style={{ position: "absolute", left: -5, top: 100, opacity: 0.85 }}
+            style={{ position: "absolute", left: -5, top: 70, opacity: 0.9 }}
           />
 
           {/* Top bar */}
@@ -870,7 +870,7 @@ const s = StyleSheet.create({
 
   // ── Hero ──────────────────────────────────
   hero: {
-    paddingTop: 140,
+    paddingTop: 70,
     paddingHorizontal: 20,
     paddingBottom: 16,
     overflow: "hidden",
