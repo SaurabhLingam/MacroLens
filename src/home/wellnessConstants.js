@@ -29,7 +29,7 @@ export const CATEGORIES = [
 export const CHIP_ACTIVE_COLORS = {
   All: { bg: "#CD8CFF", text: "#FFFFFF" },
   Sleep: { bg: "#E4CCF7", text: "#4F3AAC" },
-  Nutrition: { bg: "#82c957", text: "#197C2E" },
+  Nutrition: { bg: "#97D96D", text: "#197C2E" },
   Fitness: { bg: "#FFD890", text: "#D87E18" },
   Medicine: { bg: "#DCECFF", text: "#1D4ED8" },
   Mentrual: { bg: "#F8D4EA", text: "#D63A9A" },

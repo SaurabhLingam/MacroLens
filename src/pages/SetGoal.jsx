@@ -16,6 +16,7 @@ import {
   Platform,
   StatusBar,
   TextInput,
+  Image,
 } from "react-native";
 import Svg, { Circle, Path, Line, Text as SvgText } from "react-native-svg";
 import { Feather } from "@expo/vector-icons";
@@ -42,44 +43,77 @@ const CENTER    = DIAL_SIZE / 2;
 const CalorieResultCard = ({ calories, onRecalculate }) => (
   <LinearGradient
     colors={["#EEF9FF", "#C3EAFF", "#DBF3FF"]}
-    start={{ x: 0, y: 0 }}
-    end={{ x: 1, y: 0 }}
-    style={{ borderRadius: 14, padding: 14 }}
+    locations={[0.0016, 0.5, 0.9984]}
+    start={{ x: 0, y: 0.5 }}
+    end={{ x: 1, y: 0.5 }}
+    style={cr.card}
   >
-    <Text weight="600" style={{ fontSize: 13, color: "#1a4a6e", marginBottom: 12 }}>
-      Your Daily Calorie Needs
-    </Text>
-    <View style={{ flexDirection: "row", gap: 6 }}>
-      {[
-        { label: "To Lose",  value: calories.lose,     bg: "#F5FFF3" },
-        { label: "Maintain", value: calories.maintain, bg: "#FFFFE4" },
-        { label: "To Gain",  value: calories.gain,     bg: "#FFF1F1" },
-      ].map(({ label, value, bg }) => (
-        <View key={label} style={{
-          flex: 1, backgroundColor: bg, borderRadius: 10,
-          paddingVertical: 10, alignItems: "center",
-        }}>
-          <Text style={{ fontSize: 10, color: "#888", marginBottom: 4, textAlign: "center" }}>
-            {label}
-          </Text>
-          <Text weight="700" style={{ fontSize: 18, color: "#111" }}>
-            {value.toLocaleString()}
-          </Text>
-          <Text style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>kcal</Text>
-        </View>
-      ))}
+    <View style={cr.iconWrap}>
+      <Image
+        source={require("../../assets/foodplate.webp")}
+        style={cr.plateImage}
+        resizeMode="contain"
+      />
     </View>
-    <TouchableOpacity onPress={onRecalculate} activeOpacity={0.88} style={{ marginTop: 12 }}>
-      <LinearGradient
-        colors={["#B148FF", "#F6339B", "#9914F9"]}
-        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={{ borderRadius: 10, paddingVertical: 10, alignItems: "center" }}
-      >
-        <Text weight="600" style={{ fontSize: 13, color: "#fff" }}>Recalculate</Text>
-      </LinearGradient>
-    </TouchableOpacity>
+    <View style={cr.content}>
+      <Text weight="700" style={cr.title}>Recalculate your calories</Text>
+      <Text weight="400" style={cr.sub}>
+        Based on your last calculation
+      </Text>
+      <View style={cr.chipRow}>
+        {[
+          { label: `${calories.lose} kcal`,     hint: "Lose" },
+          { label: `${calories.maintain} kcal`, hint: "Maintain" },
+          { label: `${calories.gain} kcal`,     hint: "Gain" },
+        ].map((t) => (
+          <View key={t.hint} style={cr.chip}>
+            <Text weight="500" style={cr.chipHint}>{t.hint}</Text>
+            <Text weight="700" style={cr.chipVal}>{t.label}</Text>
+          </View>
+        ))}
+      </View>
+      <TouchableOpacity activeOpacity={0.85} style={cr.btnWrap} onPress={onRecalculate}>
+        <LinearGradient
+          colors={["#B148FF", "#F6339B", "#9914F9"]}
+          locations={[0, 0.5, 1]}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={cr.btn}
+        >
+          <Text weight="600" style={cr.btnText}>Recalculate</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
   </LinearGradient>
 );
+
+const cr = StyleSheet.create({
+  card: {
+    borderRadius: 12, paddingVertical: 10, paddingHorizontal: 10,
+    borderWidth: 1, borderColor: "#C7E5FC",
+    flexDirection: "row", overflow: "hidden",
+  },
+  iconWrap: { width: 110, alignItems: "center", justifyContent: "center" },
+  plateImage: { width: 100, height: 100 },
+  content: { flex: 1, paddingTop: 2, paddingRight: 4 },
+  title: { fontSize: 13, lineHeight: 17, color: "#111827", marginBottom: 3 },
+  sub: { fontSize: 11, lineHeight: 14, color: "#4B5563", marginBottom: 6 },
+  chipRow: { flexDirection: "row", gap: 4, marginBottom: 8, flexWrap: "wrap" },
+  chip: {
+    backgroundColor: "#FFFFFF", borderRadius: 999,
+    borderWidth: 1, borderColor: "#E5E7EB",
+    paddingHorizontal: 7, paddingVertical: 3,
+    alignItems: "center",
+  },
+  chipHint: { fontSize: 9, color: "#888" },
+  chipVal:  { fontSize: 10, color: "#111827" },
+  btnWrap: { borderRadius: 4, alignSelf: "center", overflow: "hidden", marginRight: 80 },
+  btn: {
+    minWidth: 120, height: 28, borderRadius: 4,
+    justifyContent: "center", alignItems: "center", paddingHorizontal: 10,
+  },
+  btnText: { fontSize: 10, lineHeight: 11, color: "#FFFFFF", textAlign: "center" },
+});
 
 // ─────────────────────────────────────────────
 // DialArc — reads displayCalorie to draw arc

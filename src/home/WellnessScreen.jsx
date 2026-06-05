@@ -75,7 +75,7 @@ export default function WellnessScreen({ navigation, route }) {
       >
         <View key="0"><WellnessAllSection hideHeader={true} navigation={navigation} /></View>
         <View key="1"><SleepWellnessSection hideHeader={true} navigation={navigation} /></View>
-        <View key="2"><Nutrition hideHeader={true} navigation={navigation} /></View>
+        <View key="2"><NutritionWellnessSection hideHeader={true} navigation={navigation} /></View>
         <View key="3"><FitnessWellnessSection hideHeader={true} navigation={navigation} /></View>
         <View key="4"><MedicineWellnessSection hideHeader={true} navigation={navigation} /></View>
         <View key="5"><MenstrualWellnessSection hideHeader={true} navigation={navigation} /></View>

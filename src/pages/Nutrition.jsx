@@ -393,7 +393,45 @@ const WeeklyNutritionTrend = ({ goalCalories, macroTargets }) => {
     </>
   );
 };
+// ─────────────────────────────────────────────
+// ACTION CARD (NutritionWellness gradient style)
+// ─────────────────────────────────────────────
+const GRADIENT_MAP = {
+  log:      ["#FFFFFF", "#E6FFE5"],
+  scanFood: ["#FFFFFF", "#FFE7F4"],
+  barcode:  ["#FFFFFF", "#FFFBE7"],
+};
 
+const NutritionAction = ({ title, subtitle, color, icon, variant, containerStyle, onPress }) => {
+  const gradColors = GRADIENT_MAP[variant];
+  if (!gradColors) return null;
+  const isWrap = variant === "log" || variant === "barcode";
+  const Inner = (
+    <TouchableOpacity activeOpacity={0.85} style={[s2.actionCard, s2.logActionCard]} onPress={onPress}>
+      <LinearGradient
+        colors={gradColors}
+        locations={[0, 1]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        style={s2.logActionGradient}
+      >
+        <View style={s2.actionTopRow}>
+          <View style={s2.actionIcon}>{icon}</View>
+        </View>
+        <Text weight="600" style={[s2.actionTitle, { color }]}>{title}</Text>
+        <Text weight="400" style={[s2.actionSub, { color }]}>{subtitle}</Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+  if (isWrap) {
+    return (
+      <View style={[s2.logActionWrap, containerStyle]}>
+        <View style={s2.logActionShadowLayer}>{Inner}</View>
+      </View>
+    );
+  }
+  return <View style={[s2.actionItem, containerStyle]}>{Inner}</View>;
+};
 // ─────────────────────────────────────────────
 // MAIN SCREEN
 // ─────────────────────────────────────────────
@@ -497,10 +535,7 @@ const NutritionHomeRN = () => {
 
   const isGoalSet = !!goalData;
 
-  const handleLogout = async () => {
-    await AsyncStorage.removeItem(STORAGE_KEYS.ONBOARDING_DONE);
-    navigation.reset({ index: 0, routes: [{ name: "NutritionSetGoal" }] });
-  };
+  
 
   const today = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -527,9 +562,15 @@ const NutritionHomeRN = () => {
         style={{ opacity: heroOpacity, transform: [{ translateY: heroSlide }] }}
       >
         <LinearGradient
-          colors={["#5a9f2f", "#9BE36F", "#D4F5B8", "#fcfffa", "#ffffff"]}
-          start={{ x: 0.1, y: 0 }}
-          end={{ x: 0.6, y: 1 }}
+          colors={[
+            "#98D96D",
+            "rgba(186,233,160,0.65)",
+            "rgba(222,243,210,0.15)",
+            "rgba(243,239,235,0)",
+          ]}
+          locations={[0, 0.35, 0.72, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
           style={s.hero}
         >
           {/* Decorative circles */}
@@ -538,7 +579,7 @@ const NutritionHomeRN = () => {
           <FoodGroup
             width={width + 10}
             height={320}
-            style={{ position: "absolute", left: -5, top: 70, opacity: 0.9 }}
+            style={{ position: "absolute", left: -5, top: 30, opacity: 0.9 }}
           />
 
           {/* Top bar */}
@@ -554,14 +595,10 @@ const NutritionHomeRN = () => {
                   </Text>
                 </>
               )}
+              <Text weight="700" style={s.heroTagline}>
+                Track your meals to maintain{"\n"}a balanced diet.
+              </Text>
             </View>
-            <TouchableOpacity
-              style={s.iconBtn}
-              onPress={handleLogout}
-              activeOpacity={0.75}
-            >
-              <Feather name="log-out" size={17} color="#fff" />
-            </TouchableOpacity>
           </View>
 
           {/* Calorie ring — shown when goal set */}
@@ -594,26 +631,29 @@ const NutritionHomeRN = () => {
               </View>
 
               <View style={s.quickRow}>
-                <TouchableOpacity style={s.quickCard} onPress={() => setShowMealPicker(true)}>
-                  <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#E6FFE5", borderRadius: 10 }]} />
-                  <SpoonFork width={20} height={20} />
-                  <Text weight="700" style={[s.quickTitle, { color: "#118411" }]}>Log Meal</Text>
-                  <Text style={[s.quickSub, { color: "#118411" }]}>Today: {totalMealsLogged} item{totalMealsLogged !== 1 ? "s" : ""} logged</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={s.quickCard} onPress={() => navigation.navigate("NutritionScan")}>
-                  <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFE7F4", borderRadius: 10 }]} />
-                  <ScanIcon width={20} height={20} />
-                  <Text weight="700" style={[s.quickTitle, { color: "#BD4E9C" }]}>Scan Food</Text>
-                  <Text style={[s.quickSub, { color: "#D44797" }]}>Today: {scanCount} scanned</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={s.quickCard} onPress={() => navigation.navigate("NutritionBarcode")}>
-                  <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFFBE7", borderRadius: 10 }]} />
-                  <BarcodeIcon width={20} height={20} />
-                  <Text weight="700" style={[s.quickTitle, { color: "#E5960D" }]}>Scan Barcode</Text>
-                  <Text style={[s.quickSub, { color: "#E5960D" }]}>{lastBarcodeItem ? `Last: ${lastBarcodeItem}` : "Tap to scan"}</Text>
-                </TouchableOpacity>
+                                <NutritionAction
+                  title="Log Meal"
+                  subtitle={`Today: ${totalMealsLogged} item${totalMealsLogged !== 1 ? "s" : ""} logged`}
+                  color="#18933B" variant="log"
+                  icon={<SpoonFork width={16} height={16} />}
+                  containerStyle={{ marginRight: 8 }}
+                  onPress={() => setShowMealPicker(true)}
+                />
+                <NutritionAction
+                  title="Scan Food"
+                  subtitle={`Today: ${scanCount} scanned`}
+                  color="#D63DAA" variant="scanFood"
+                  icon={<ScanIcon width={16} height={16} />}
+                  containerStyle={{ marginRight: 8 }}
+                  onPress={() => navigation.navigate("NutritionScan")}
+                />
+                <NutritionAction
+                  title="Scan Barcode"
+                  subtitle={lastBarcodeItem ? `Last: ${lastBarcodeItem}` : "Tap to scan"}
+                  color="#C67A06" variant="barcode"
+                  icon={<BarcodeIcon width={16} height={16} />}
+                  onPress={() => navigation.navigate("NutritionBarcode")}
+                />
               </View>
             </>
           ) : (
@@ -636,27 +676,30 @@ const NutritionHomeRN = () => {
                   <Text weight="700" style={s.viewPlateBtnTxt}>Set Goal</Text>
                 </LinearGradient>
               </TouchableOpacity>
-                <View style={[s.quickRow, { paddingHorizontal: 0, width: "100%" }]}>
-                  <TouchableOpacity style={s.quickCard} onPress={() => setShowMealPicker(true)}>
-                    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#E6FFE5", borderRadius: 10 }]} />
-                    <SpoonFork width={20} height={20} />
-                    <Text weight="700" style={[s.quickTitle, { color: "#118411" }]}>Log Meal</Text>
-                    <Text style={[s.quickSub, { color: "#118411" }]}>Today: {totalMealsLogged} item{totalMealsLogged !== 1 ? "s" : ""} logged</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={s.quickCard} onPress={() => navigation.navigate("NutritionScan")}>
-                    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFE7F4", borderRadius: 10 }]} />
-                    <ScanIcon width={20} height={20} />
-                    <Text weight="700" style={[s.quickTitle, { color: "#BD4E9C" }]}>Scan Food</Text>
-                    <Text style={[s.quickSub, { color: "#D44797" }]}>Today: {scanCount} scanned</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={s.quickCard} onPress={() => navigation.navigate("NutritionBarcode")}>
-                    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#FFFBE7", borderRadius: 10 }]} />
-                    <BarcodeIcon width={20} height={20} />
-                    <Text weight="700" style={[s.quickTitle, { color: "#E5960D" }]}>Scan Barcode</Text>
-                    <Text style={[s.quickSub, { color: "#E5960D" }]}>{lastBarcodeItem ? `Last: ${lastBarcodeItem}` : "Tap to scan"}</Text>
-                  </TouchableOpacity>
+              <View style={[s2.actionsRow, { paddingHorizontal: 0, width: "100%" }]}>
+                 <NutritionAction
+                    title="Log Meal"
+                    subtitle={`Today: ${totalMealsLogged} item${totalMealsLogged !== 1 ? "s" : ""} logged`}
+                    color="#18933B" variant="log"
+                    icon={<SpoonFork width={16} height={16} />}
+                    containerStyle={{ marginRight: 8 }}
+                    onPress={() => setShowMealPicker(true)}
+                  />
+                  <NutritionAction
+                    title="Scan Food"
+                    subtitle={`Today: ${scanCount} scanned`}
+                    color="#D63DAA" variant="scanFood"
+                    icon={<ScanIcon width={16} height={16} />}
+                    containerStyle={{ marginRight: 8 }}
+                    onPress={() => navigation.navigate("NutritionScan")}
+                  />
+                  <NutritionAction
+                    title="Scan Barcode"
+                    subtitle={lastBarcodeItem ? `Last: ${lastBarcodeItem}` : "Tap to scan"}
+                    color="#C67A06" variant="barcode"
+                    icon={<BarcodeIcon width={16} height={16} />}
+                    onPress={() => navigation.navigate("NutritionBarcode")}
+                  />
                 </View>
                 <TouchableOpacity
                   onPress={() => navigation.navigate("CalorieCalculator")}
@@ -870,7 +913,7 @@ const s = StyleSheet.create({
 
   // ── Hero ──────────────────────────────────
   hero: {
-    paddingTop: 70,
+    paddingTop: 30,
     paddingHorizontal: 20,
     paddingBottom: 16,
     overflow: "hidden",
@@ -900,7 +943,6 @@ const s = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 12,
     zIndex: 2,
-    paddingLeft: 40,
   },
   iconBtn: {
     width: 38,
@@ -920,6 +962,7 @@ const s = StyleSheet.create({
   },
   greetText: { fontSize: isSmall ? 17 : 20, color: "#1A4A0F", textAlign: "center" },
   greetSubText: { fontSize: 13, color: "#118411", textAlign: "center" },
+  heroTagline: { fontSize: isSmall ? 16 : 18, color: "#1A5C0F", textAlign: "center", lineHeight: 26, marginTop: 6 },
 
   // Hero idle
   heroIdle: { alignItems: "center", paddingVertical: 24, gap: 12 },
@@ -1462,4 +1505,41 @@ heroIdleBtnTxt: {
   color: "#fff",
   fontSize: 15,
 },
+});
+
+const s2 = StyleSheet.create({
+  actionsRow: {
+    marginTop: 16,
+    marginBottom: 0,
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "stretch",
+  },
+  actionItem: { flex: 1 },
+  actionCard: {
+    flex: 1, minHeight: 66, borderRadius: 12,
+    borderWidth: 1, paddingHorizontal: 10, paddingVertical: 8, justifyContent: "center",
+  },
+  logActionWrap: {
+    flex: 1, borderRadius: 12,
+    shadowColor: "#BF7BB9", shadowOffset: { width: 1, height: 1 },
+    shadowOpacity: 0.2, shadowRadius: 4, elevation: 2,
+  },
+  logActionShadowLayer: {
+    flex: 1, borderRadius: 12,
+    shadowColor: "#F3E6F2", shadowOffset: { width: 1, height: 1 },
+    shadowOpacity: 0.4, shadowRadius: 4, elevation: 1,
+  },
+  logActionCard: {
+    backgroundColor: "transparent", borderColor: "#FFFFFF",
+    overflow: "hidden", paddingHorizontal: 0, paddingVertical: 0,
+  },
+  logActionGradient: {
+    flex: 1, borderRadius: 12,
+    paddingHorizontal: 10, paddingVertical: 8, justifyContent: "center",
+  },
+  actionTopRow: { flexDirection: "row", alignItems: "center" },
+  actionIcon: { marginBottom: 2 },
+  actionTitle: { marginTop: 2, fontSize: 14, lineHeight: 18 },
+  actionSub: { marginTop: 2, fontSize: 10, lineHeight: 12 },
 });
