@@ -33,6 +33,14 @@ export default function WellnessScreen({ navigation, route }) {
     setActiveIndex(index);
     pagerRef.current?.setPage(index);
   }, []);
+  const navProps = {
+    onNavigateAll:       () => handleTabPress(0),
+    onNavigateSleep:     () => handleTabPress(1),
+    onNavigateNutrition: () => handleTabPress(2),
+    onNavigateFitness:   () => handleTabPress(3),
+    onNavigateMedicine:  () => handleTabPress(4),
+    onNavigateMentrual:  () => handleTabPress(5),
+  };
 
   return (
     <View style={styles.root}>
@@ -73,12 +81,12 @@ export default function WellnessScreen({ navigation, route }) {
         initialPage={initialTab}
         onPageSelected={(e) => setActiveIndex(e.nativeEvent.position)}
       >
-        <View key="0"><WellnessAllSection hideHeader={true} navigation={navigation} /></View>
-        <View key="1"><SleepWellnessSection hideHeader={true} navigation={navigation} /></View>
-        <View key="2"><NutritionWellnessSection hideHeader={true} navigation={navigation} /></View>
-        <View key="3"><FitnessWellnessSection hideHeader={true} navigation={navigation} /></View>
-        <View key="4"><MedicineWellnessSection hideHeader={true} navigation={navigation} /></View>
-        <View key="5"><MenstrualWellnessSection hideHeader={true} navigation={navigation} /></View>
+        <View key="0"><WellnessAllSection hideHeader={true} navigation={navigation} {...navProps} /></View>
+        <View key="1"><SleepWellnessSection hideHeader={true} navigation={navigation} {...navProps} /></View>
+        <View key="2"><NutritionWellnessSection hideHeader={true} navigation={navigation} {...navProps} /></View>
+        <View key="3"><FitnessWellnessSection hideHeader={true} navigation={navigation} {...navProps} /></View>
+        <View key="4"><MedicineWellnessSection hideHeader={true} navigation={navigation} {...navProps} /></View>
+        <View key="5"><MenstrualWellnessSection hideHeader={true} navigation={navigation} {...navProps} /></View>
       </PagerView>
     </View>
   );
