@@ -18,22 +18,24 @@ import { isExpoGo, scheduleNotifications } from "./notificationService";
 
 // ─── Design tokens (MacroLens purple system) ──────────────────────────────────
 const P = {
-  primary:     "#553FB5",
-  primaryDark: "#3D2D8F",
-  primaryMid:  "#6B52C8",
-  primarySoft: "#8B72E0",
-  ghostLight:  "#F0ECFF",
-  ghostMid:    "#DCECFF",
-  ghostBorder: "#C8B8FF",
-  amber:       "#F59E0B",
-  red:         "#EF4444",
-  green:       "#10B981",
-  surface:     "#F7F5FF",
+  primary:     "#0D7A6F",   // deep teal (replaces #553FB5)
+  primaryDark: "#085C53",   // darker teal (replaces #3D2D8F)
+  primaryMid:  "#0F9185",   // mid teal (replaces #6B52C8)
+  primarySoft: "#2BADA0",   // softer teal (replaces #8B72E0)
+  ghostLight:  "#E6F5F4",   // teal tint surface (replaces #F0ECFF)
+  ghostMid:    "#D0EEEC",   // slightly deeper tint (replaces #DCECFF)
+  ghostBorder: "#9FD6D1",   // teal border (replaces #C8B8FF)
+  teal:        "#22C5AC",   // keep as-is (already teal)
+  amber:       "#F59E0B",   // unchanged
+  red:         "#EF4444",   // unchanged
+  green:       "#10B981",   // unchanged
+  surface:     "#F0FAF9",   // teal-tinted surface (replaces #F7F5FF)
   white:       "#FFFFFF",
-  text:        "#1A1235",
-  textSub:     "#4A3F70",
-  textMuted:   "#9488B8",
+  text:        "#0A1F1E",   // near-black with teal undertone (replaces #1A1235)
+  textSub:     "#2C4F4C",   // deep teal-grey (replaces #4A3F70)
+  textMuted:   "#6A9E99",   // muted teal (replaces #9488B8)
 };
+
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DOSE_TYPES = [
@@ -165,7 +167,7 @@ const AppModal = ({ visible, icon, iconColor, iconBg, title, message, buttons = 
 
 const mStyles = StyleSheet.create({
   overlay: {
-    flex: 1, backgroundColor: "rgba(26,18,53,0.55)",
+    flex: 1, backgroundColor: "rgba(10,31,30,0.55)",
     justifyContent: "center", alignItems: "center", paddingHorizontal: 32,
   },
   box: {
@@ -330,7 +332,7 @@ const TimePicker = ({ visible, initialTime, onConfirm, onClose }) => {
 };
 
 const tpStyles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(26,18,53,0.45)" },
+  backdrop: { flex: 1, backgroundColor: "rgba(10,31,30,0.45)"},
   sheet: {
     position: "absolute", bottom: 0, left: 0, right: 0,
     backgroundColor: P.white, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingBottom: 36,

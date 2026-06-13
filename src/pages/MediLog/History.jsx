@@ -19,21 +19,21 @@ import { ensureTodayHistory } from "./medicineHistoryUtils";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const P = {
-  primary:     "#553FB5",
-  primaryDark: "#3D2D8F",
-  primaryMid:  "#6B52C8",
-  primarySoft: "#8B72E0",
-  ghostLight:  "#F0ECFF",
-  ghostMid:    "#DCECFF",
-  ghostBorder: "#C8B8FF",
+  primary:     "#0D7A6F",
+  primaryDark: "#085C53",
+  primaryMid:  "#0F9185",
+  primarySoft: "#2BADA0",
+  ghostLight:  "#E6F5F4",
+  ghostMid:    "#D0EEEC",
+  ghostBorder: "#9FD6D1",
   amber:       "#F59E0B",
   red:         "#EF4444",
   green:       "#10B981",
+  surface:     "#F0FAF9",
   white:       "#FFFFFF",
-  text:        "#1A1235",
-  textSub:     "#4A3F70",
-  textMuted:   "#9488B8",
-  surface:     "#F7F5FF",
+  text:        "#0A1F1E",
+  textSub:     "#2C4F4C",
+  textMuted:   "#6A9E99",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ const statStyles = StyleSheet.create({
     padding: 12,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#EDE8FF",
+    borderColor: P.ghostBorder,
     shadowColor: P.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07,
@@ -121,7 +121,7 @@ const WeeklyHeatmap = ({ weekData }) => (
           day.status === "done"    ? P.green
           : day.status === "partial" ? P.amber
           : day.status === "missed"  ? P.red
-          : "#EDE8FF";
+          : P.ghostBorder;
         const dotBg =
           day.status === "done"    ? "#ECFDF5"
           : day.status === "partial" ? "#FFFBEB"
@@ -615,7 +615,7 @@ const History = ({ navigation }) => {
                       {
                         backgroundColor: isTaken
                           ? P.green
-                          : dose.markedMissed ? P.red : "#EDE8FF",
+                          : dose.markedMissed ? P.red : P.ghostBorder,
                       },
                     ]}
                   />
@@ -733,7 +733,7 @@ const History = ({ navigation }) => {
 
       {/* Fixed header band */}
       <LinearGradient
-        colors={[P.ghostMid, "rgba(220,236,255,0.4)", P.surface]}
+        colors={[P.ghostMid, "rgba(208,238,236,0.4)", P.surface]}
         locations={[0, 0.5, 1]}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -1044,7 +1044,7 @@ const styles = StyleSheet.create({
   doseRowMissed: { backgroundColor: "#FFFAFA" },
   doseRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: "#F0EAFF",
+    borderBottomColor: P.ghostLight,
   },
   doseStripe: {
     width: 4,
@@ -1086,7 +1086,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: "#C8B8FF",
+    backgroundColor: P.ghostBorder,
   },
   takenChip: {
     flexDirection: "row",
@@ -1211,7 +1211,7 @@ const styles = StyleSheet.create({
   },
   seOverlay: {
     flex: 1,
-    backgroundColor: "rgba(26,18,53,0.45)",
+    backgroundColor: "rgba(10,31,30,0.45)",
   },
   seSheet: {
     backgroundColor: P.white,

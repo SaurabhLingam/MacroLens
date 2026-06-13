@@ -18,21 +18,21 @@ import { Text } from "../../components/TextWrapper";
 
 const { width, height } = Dimensions.get("window");
 
-// ─── Design tokens (purple system) ───────────────────────────────────────────
+// ─── Design tokens (teal system) ─────────────────────────────────────────────
 const P = {
-  primary:     "#553FB5",
-  primaryDark: "#3D2D8F",
-  primaryMid:  "#6B52C8",
-  primarySoft: "#8B72E0",
-  ghostLight:  "#F0ECFF",
-  ghostBorder: "#C8B8FF",
+  primary:     "#0D7A6F",
+  primaryDark: "#085C53",
+  primaryMid:  "#0F9185",
+  primarySoft: "#2BADA0",
+  ghostLight:  "#E6F5F4",
+  ghostBorder: "#9FD6D1",
   teal:        "#22C5AC",        // kept for scan-line — high contrast on camera
   tealGlow:    "#6EFCE8",
   amber:       "#F59E0B",
   coral:       "#FF6B6B",
   white:       "#FFFFFF",
   black:       "#000000",
-  overlay:     "rgba(18,10,46,0.72)",   // purple-tinted dark
+  overlay:     "rgba(2,26,24,0.72)",   // teal-tinted dark
 };
 
 const FRAME_SIZE = width * 0.72;
@@ -319,7 +319,7 @@ const s = StyleSheet.create({
   // ── Permission screens
   permissionScreen: {
     flex: 1,
-    backgroundColor: "#110A2E",
+    backgroundColor: "#021A18",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 36,
@@ -447,12 +447,12 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "rgba(139,114,224,0.18)",
+    backgroundColor: "rgba(13,122,111,0.18)",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: "rgba(139,114,224,0.32)",
+    borderColor: "rgba(13,122,111,0.32)",
   },
   frameLabelText: {
     fontSize: 11,
@@ -475,9 +475,9 @@ const s = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: "rgba(30,16,72,0.55)",
+    backgroundColor: "rgba(2,26,24,0.55)",
     borderWidth: 1,
-    borderColor: "rgba(200,184,255,0.18)",
+    borderColor: "rgba(159,214,209,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -489,12 +489,12 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(30,16,72,0.55)",
+    backgroundColor: "rgba(2,26,24,0.55)",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: "rgba(200,184,255,0.16)",
+    borderColor: "rgba(159,214,209,0.16)",
   },
   liveDot: {
     width: 7,
@@ -520,11 +520,11 @@ const s = StyleSheet.create({
     paddingBottom: Platform.OS === "ios" ? 44 : 28,
     paddingTop: 20,
     paddingHorizontal: 24,
-    backgroundColor: "rgba(22,12,56,0.78)",
+    backgroundColor: "rgba(2,26,24,0.78)",
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     borderTopWidth: 1,
-    borderColor: "rgba(200,184,255,0.12)",
+    borderColor: "rgba(159,214,209,0.12)",
   },
   tipsRow: {
     flexDirection: "row",
@@ -535,12 +535,12 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    backgroundColor: "rgba(139,114,224,0.14)",
+    backgroundColor: "rgba(13,122,111,0.14)",
     borderRadius: 8,
     paddingHorizontal: 9,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: "rgba(200,184,255,0.2)",
+    borderColor: "rgba(159,214,209,0.2)",
   },
   tipChipText: {
     fontSize: 10,
@@ -575,7 +575,7 @@ const s = StyleSheet.create({
     height: 84,
     borderRadius: 42,
     borderWidth: 2,
-    borderColor: "rgba(139,114,224,0.45)",
+    borderColor: "rgba(13,122,111,0.45)",
   },
   captureBtn: {
     width: 68,

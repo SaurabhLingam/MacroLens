@@ -27,23 +27,24 @@ import { ensureTodayHistory } from "../pages/MediLog/medicineHistoryUtils";
 
 // ─── Design tokens (unchanged purple system) ──────────────────────────────────
 const P = {
-  primary:     "#553FB5",
-  primaryDark: "#3D2D8F",
-  primaryMid:  "#6B52C8",
-  primarySoft: "#8B72E0",
-  ghostLight:  "#F0ECFF",
-  ghostMid:    "#DCECFF",
-  ghostBorder: "#C8B8FF",
-  teal:        "#22C5AC",
-  amber:       "#F59E0B",
-  red:         "#EF4444",
-  green:       "#10B981",
-  surface:     "#F7F5FF",
+  primary:     "#0D7A6F",   // deep teal (replaces #553FB5)
+  primaryDark: "#085C53",   // darker teal (replaces #3D2D8F)
+  primaryMid:  "#0F9185",   // mid teal (replaces #6B52C8)
+  primarySoft: "#2BADA0",   // softer teal (replaces #8B72E0)
+  ghostLight:  "#E6F5F4",   // teal tint surface (replaces #F0ECFF)
+  ghostMid:    "#D0EEEC",   // slightly deeper tint (replaces #DCECFF)
+  ghostBorder: "#9FD6D1",   // teal border (replaces #C8B8FF)
+  teal:        "#22C5AC",   // keep as-is (already teal)
+  amber:       "#F59E0B",   // unchanged
+  red:         "#EF4444",   // unchanged
+  green:       "#10B981",   // unchanged
+  surface:     "#F0FAF9",   // teal-tinted surface (replaces #F7F5FF)
   white:       "#FFFFFF",
-  text:        "#1A1235",
-  textSub:     "#4A3F70",
-  textMuted:   "#9488B8",
+  text:        "#0A1F1E",   // near-black with teal undertone (replaces #1A1235)
+  textSub:     "#2C4F4C",   // deep teal-grey (replaces #4A3F70)
+  textMuted:   "#6A9E99",   // muted teal (replaces #9488B8)
 };
+
 
 // ─── Time-of-day config ────────────────────────────────────────────────────────
 const TOD_CONFIG = {
@@ -424,7 +425,7 @@ const ScannerCard = ({ onScan, onUpload }) => {
   return (
     <View style={s.scannerCard}>
       <LinearGradient
-        colors={["#3D2D8F", "#553FB5", "#7B5FD4"]}
+        colors={["#085C53", "#0D7A6F", "#1A9E90"]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={s.scannerGradient}
       >
@@ -678,7 +679,7 @@ function MedicineWellnessSection(props) {
 
         {/* ── Hero gradient band ──────────────────────────────────────────── */}
         <LinearGradient
-          colors={["#DCECFF", "rgba(220,236,255,0.55)", "rgba(243,239,235,0)"]}
+          colors={["#D0EEEC", "rgba(208,238,236,0.55)", "rgba(243,239,235,0)"]}
           locations={[0, 0.45, 1]}
           start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
           style={s.heroBand}
@@ -694,53 +695,65 @@ function MedicineWellnessSection(props) {
                 <View style={[s.blob, { top: -24, right: -16, width: 100, height: 100, opacity: 0.18 }]} />
                 <View style={[s.blob, { bottom: -20, left: -8, width: 72, height: 72, opacity: 0.12 }]} />
 
-                <View style={s.heroLeft}>
-                  <Text weight="700" style={s.heroGreeting}>Today's Medicines</Text>
-                  <Text weight="400" style={s.heroDate}>
-                    {new Date().toLocaleDateString("en-IN", {
-                      weekday: "long", day: "numeric", month: "short",
-                    })}
-                  </Text>
-                  <View style={s.heroStatsRow}>
-                    <View style={s.heroStat}>
-                      <Text weight="800" style={[s.heroStatNum, { color: P.green }]}>{takenCount}</Text>
-                      <Text weight="500" style={s.heroStatLabel}>Taken</Text>
+                {hasDoses ? (
+                  <>
+                    <View style={s.heroLeft}>
+                      <Text weight="700" style={s.heroGreeting}>Today's Medicines</Text>
+                      <Text weight="400" style={s.heroDate}>
+                        {new Date().toLocaleDateString("en-IN", {
+                          weekday: "long", day: "numeric", month: "short",
+                        })}
+                      </Text>
+                      <View style={s.heroStatsRow}>
+                        <View style={s.heroStat}>
+                          <Text weight="800" style={[s.heroStatNum, { color: P.green }]}>{takenCount}</Text>
+                          <Text weight="500" style={s.heroStatLabel}>Taken</Text>
+                        </View>
+                        <View style={s.heroStatDivider} />
+                        <View style={s.heroStat}>
+                          <Text weight="800" style={[s.heroStatNum, { color: P.amber }]}>{pendingCount}</Text>
+                          <Text weight="500" style={s.heroStatLabel}>Pending</Text>
+                        </View>
+                        <View style={s.heroStatDivider} />
+                        <View style={s.heroStat}>
+                          <Text weight="800" style={[s.heroStatNum, { color: "#9FD6D1" }]}>{totalMeds}</Text>
+                          <Text weight="500" style={s.heroStatLabel}>Active</Text>
+                        </View>
+                      </View>
+                      {streak > 0 && (
+                        <View style={s.streakBadge}>
+                          <MaterialCommunityIcons name="fire" size={13} color={P.amber} />
+                          <Text weight="600" style={s.streakText}>{streak}-day streak</Text>
+                        </View>
+                      )}
                     </View>
-                    <View style={s.heroStatDivider} />
-                    <View style={s.heroStat}>
-                      <Text weight="800" style={[s.heroStatNum, { color: P.amber }]}>{pendingCount}</Text>
-                      <Text weight="500" style={s.heroStatLabel}>Pending</Text>
+                    <View style={s.heroRight}>
+                      <AdherenceRing pct={adherence} size={88} strokeW={8} />
+                      <Text weight="500" style={s.adherenceLabel}>Adherence</Text>
                     </View>
-                    <View style={s.heroStatDivider} />
-                    <View style={s.heroStat}>
-                      <Text weight="800" style={[s.heroStatNum, { color: "#C8B8FF" }]}>{totalMeds}</Text>
-                      <Text weight="500" style={s.heroStatLabel}>Active</Text>
-                    </View>
+                  </>
+                ) : (
+                  <View style={s.heroEmpty}>
+                    <MaterialCommunityIcons name="pill" size={36} color="rgba(255,255,255,0.85)" />
+                    <Text weight="800" style={s.heroEmptyTitle}>Track Your Medicines</Text>
+                    <Text weight="400" style={s.heroEmptySub}>Add your first medicine to get started</Text>
                   </View>
-                  {streak > 0 && (
-                    <View style={s.streakBadge}>
-                      <MaterialCommunityIcons name="fire" size={13} color={P.amber} />
-                      <Text weight="600" style={s.streakText}>{streak}-day streak</Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={s.heroRight}>
-                  <AdherenceRing pct={adherence} size={88} strokeW={8} />
-                  <Text weight="500" style={s.adherenceLabel}>Adherence</Text>
-                </View>
+                )}
               </LinearGradient>
             </View>
           </StaggerItem>
 
           {/* Stats pills */}
-          <StaggerItem delay={60}>
-            <StatsPillRow
-              streak={streak}
-              monthlyAdherence={monthlyAdherence}
-              totalMeds={totalMeds}
-            />
-          </StaggerItem>
+          {hasDoses && (
+            <StaggerItem delay={60}>
+              <StatsPillRow
+                streak={streak}
+                monthlyAdherence={monthlyAdherence}
+                totalMeds={totalMeds}
+              />
+            </StaggerItem>
+          )}
+
 
           {/* Quick tiles */}
           <StaggerItem delay={100}>
@@ -929,6 +942,12 @@ const s = StyleSheet.create({
   streakText: { fontSize: 11, color: "rgba(255,255,255,0.9)" },
   heroRight: { alignItems: "center", gap: 6 },
   adherenceLabel: { fontSize: 9.5, color: "rgba(255,255,255,0.55)", letterSpacing: 0.3 },
+  heroEmpty: {
+    flex: 1, alignItems: "center", justifyContent: "center",
+    gap: 10, paddingVertical: 10,
+  },
+  heroEmptyTitle: { fontSize: 22, color: "#fff", letterSpacing: -0.3 },
+  heroEmptySub: { fontSize: 12, color: "rgba(255,255,255,0.55)", textAlign: "center" },
 
   // ── Stats pills
   statsPillRow: { flexDirection: "row", gap: 8, marginTop: 12 },

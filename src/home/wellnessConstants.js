@@ -21,7 +21,7 @@ export const CATEGORIES = [
   { label: "Sleep", color: "#5B3DBA" },
   { label: "Nutrition", color: "#16A34A" },
   { label: "Fitness", color: "#EA580C" },
-  { label: "Medicine", color: "#1D4ED8" },
+  { label: "Medicine", color: "#0D7A6F" },
   { label: "Mentrual", color: "#DB2777" },
 ];
 
@@ -31,7 +31,7 @@ export const CHIP_ACTIVE_COLORS = {
   Sleep: { bg: "#E4CCF7", text: "#4F3AAC" },
   Nutrition: { bg: "#97D96D", text: "#197C2E" },
   Fitness: { bg: "#FFD890", text: "#D87E18" },
-  Medicine: { bg: "#DCECFF", text: "#1D4ED8" },
+  Medicine: { bg: "#D0EEEC", text: "#085C53" },
   Mentrual: { bg: "#F8D4EA", text: "#D63A9A" },
 };
 

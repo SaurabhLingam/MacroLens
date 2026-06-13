@@ -20,24 +20,21 @@ const { width } = Dimensions.get("window");
 
 // ─── Design tokens (purple system — unchanged) ────────────────────────────────
 const P = {
-  primary:     "#553FB5",
-  primaryDark: "#3D2D8F",
-  primaryMid:  "#6B52C8",
-  primarySoft: "#8B72E0",
-  ghostLight:  "#F0ECFF",
-  ghostMid:    "#DCECFF",
-  ghostBorder: "#C8B8FF",
-  teal:        "#22C5AC",
-  tealGlow:    "#6EFCE8",
+  primary:     "#0D7A6F",
+  primaryDark: "#085C53",
+  primaryMid:  "#0F9185",
+  primarySoft: "#2BADA0",
+  ghostLight:  "#E6F5F4",
+  ghostMid:    "#D0EEEC",
+  ghostBorder: "#9FD6D1",
   amber:       "#F59E0B",
-  coral:       "#FF6B6B",
-  lavender:    "#A78BFA",
-  gold:        "#FFD166",
-  surface:     "#F7F5FF",
+  red:         "#EF4444",
+  green:       "#10B981",
+  surface:     "#F0FAF9",
   white:       "#FFFFFF",
-  text:        "#1A1235",
-  textSub:     "#4A3F70",
-  textMuted:   "#9488B8",
+  text:        "#0A1F1E",
+  textSub:     "#2C4F4C",
+  textMuted:   "#6A9E99",
 };
 
 // ─── Component ─────────────────────────────────────────────────────────────────

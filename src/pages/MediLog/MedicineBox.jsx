@@ -16,6 +16,25 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { isExpoGo } from "./notificationService";
 import { Text } from "../../components/TextWrapper";
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const P = {
+  primary:     "#0D7A6F",
+  primaryDark: "#085C53",
+  primaryMid:  "#0F9185",
+  primarySoft: "#2BADA0",
+  ghostLight:  "#E6F5F4",
+  ghostMid:    "#D0EEEC",
+  ghostBorder: "#9FD6D1",
+  amber:       "#F59E0B",
+  red:         "#EF4444",
+  green:       "#10B981",
+  surface:     "#F0FAF9",
+  white:       "#FFFFFF",
+  text:        "#0A1F1E",
+  textSub:     "#2C4F4C",
+  textMuted:   "#6A9E99",
+};
+
 // ─── Helper ───────────────────────────────────────────────────────────────────
 const DOSE_TYPE_ICONS = {
   Tablet: "pill",
@@ -432,7 +451,7 @@ const MedicineBox = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F7F5FF" />
+      <StatusBar barStyle="dark-content" backgroundColor= "#F0FAF9" />
 
       {/* Header */}
       <View style={styles.header}>
@@ -440,7 +459,7 @@ const MedicineBox = ({ navigation }) => {
           onPress={() => navigation.goBack()}
           style={styles.backBtn}
         >
-          <MaterialCommunityIcons name="arrow-left" size={20} color="#4A5568" />
+          <MaterialCommunityIcons name="arrow-left" size={20} color="#2C4F4C" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Medicine Box</Text>
@@ -460,7 +479,7 @@ const MedicineBox = ({ navigation }) => {
       {/* Stats */}
       <View style={styles.statsRow}>
         <View style={styles.statCard}>
-          <Text style={[styles.statNum, { color: "#553FB5" }]}>
+          <Text style={[styles.statNum, { color: "#0D7A6F"}]}>
             {stats.total}
           </Text>
           <Text style={styles.statLabel}>Active</Text>
@@ -520,7 +539,7 @@ const MedicineBox = ({ navigation }) => {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#553FB5"
+            tintColor="#0D7A6F"
           />
         }
         ListEmptyComponent={
@@ -569,7 +588,7 @@ const MedicineBox = ({ navigation }) => {
               <Text style={styles.modalTitle}>Low Stock Alert</Text>
               <Text style={styles.modalMedName}>{currentAlert?.name}</Text>
               <View style={styles.modalStockRow}>
-                <MaterialCommunityIcons name="package-variant" size={16} color="#9488B8" />
+                <MaterialCommunityIcons name="package-variant" size={16} color="#6A9E99" />
                 <Text style={styles.modalStockText}>
                   Only{" "}
                   <Text style={styles.modalStockHighlight}>
@@ -600,9 +619,9 @@ const MedicineBox = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <View style={[styles.modalHeader, { backgroundColor: "#F0ECFF", borderBottomColor: "#C8B8FF" }]}>
-              <View style={[styles.modalIconRing, { backgroundColor: "#F0ECFF", borderColor: "#C8B8FF" }]}>
-                <MaterialCommunityIcons name="pill-multiple" size={28} color="#553FB5" />
+            <View style={[styles.modalHeader, { backgroundColor: "#E6F5F4", borderBottomColor: "#9FD6D1" }]}>
+              <View style={[styles.modalIconRing, { backgroundColor: "#E6F5F4", borderColor: "#9FD6D1" }]}>
+                <MaterialCommunityIcons name="pill-multiple" size={28} color="#0D7A6F" />
               </View>
             </View>
             <View style={styles.modalBody}>
@@ -630,24 +649,24 @@ const MedicineBox = ({ navigation }) => {
               <TextInput
                 style={styles.dosageInput}
                 placeholder="New dosage e.g. 1000mg"
-                placeholderTextColor="#C8B8FF"
+                placeholderTextColor="#9FD6D1"
                 value={dosageModal.newDose}
                 onChangeText={(v) => setDosageModal((m) => ({ ...m, newDose: v }))}
               />
               <TextInput
                 style={[styles.dosageInput, { marginTop: 8 }]}
                 placeholder="Note e.g. Doctor increased after review"
-                placeholderTextColor="#C8B8FF"
+                placeholderTextColor="#9FD6D1"
                 value={dosageModal.note}
                 onChangeText={(v) => setDosageModal((m) => ({ ...m, note: v }))}
               />
             </View>
             <View style={{ flexDirection: "row", gap: 10, marginHorizontal: 24, marginBottom: 24 }}>
               <TouchableOpacity
-                style={[styles.modalBtn, { flex: 1, backgroundColor: "#F0ECFF" }]}
+                style={[styles.modalBtn, { flex: 1, backgroundColor: "#E6F5F4" }]}
                 onPress={() => setDosageModal({ visible: false, med: null, newDose: "", note: "" })}
               >
-                <Text style={[styles.modalBtnText, { color: "#553FB5" }]}>Cancel</Text>
+                <Text style={[styles.modalBtnText, { color: "#0D7A6F" }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, { flex: 1 }]}
@@ -668,7 +687,7 @@ export default MedicineBox;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#F7F5FF",
+    backgroundColor: "#F0FAF9",
   },
 
   header: {
@@ -688,18 +707,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#C8B8FF",
+    borderColor: "#9FD6D1",
   },
 
   title: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#1A1235",
+    color: "#0A1F1E",
   },
 
   subtitle: {
     fontSize: 13,
-    color: "#9488B8",
+    color: "#6A9E99",
     marginTop: 1,
   },
 
@@ -707,10 +726,10 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 14,
-    backgroundColor: "#553FB5",
+    backgroundColor: "#0D7A6F",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#553FB5",
+    shadowColor: "#0D7A6F",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -731,8 +750,8 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#C8B8FF",
-    shadowColor: "#553FB5",
+    borderColor: "#9FD6D1",
+    shadowColor: "#0D7A6F",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -746,7 +765,7 @@ const styles = StyleSheet.create({
 
   statLabel: {
     fontSize: 11,
-    color: "#9488B8",
+    color: "#6A9E99",
     marginTop: 3,
     fontWeight: "600",
   },
@@ -766,18 +785,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
-    borderColor: "#C8B8FF",
+    borderColor: "#9FD6D1",
   },
 
   tabActive: {
-    backgroundColor: "#553FB5",
-    borderColor: "#553FB5",
+    backgroundColor: "#0D7A6F",
+    borderColor: "#0D7A6F",
   },
 
   tabText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#4A3F70",
+    color: "#2C4F4C",
   },
 
   tabTextActive: {
@@ -795,8 +814,8 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 14,
     borderWidth: 1.5,
-    borderColor: "#C8B8FF",
-    shadowColor: "#553FB5",
+    borderColor: "#9FD6D1",
+    shadowColor: "#0D7A6F",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
@@ -832,7 +851,7 @@ const styles = StyleSheet.create({
   medName: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1A1235",
+    color: "#0A1F1E",
     marginBottom: 6,
   },
 
@@ -855,7 +874,7 @@ const styles = StyleSheet.create({
 
   medFreq: {
     fontSize: 12,
-    color: "#9488B8",
+    color: "#6A9E99",
     fontWeight: "500",
   },
 
@@ -868,11 +887,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#F7F9FC",
+    backgroundColor: "#F0FAF9",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#9FD6D1",
   },
 
   actionBtnDanger: {
@@ -903,7 +922,7 @@ const styles = StyleSheet.create({
 
   divider: {
     height: 1,
-    backgroundColor: "#DCD4FF",
+    backgroundColor: "#9FD6D1",
     marginBottom: 14,
   },
 
@@ -920,7 +939,7 @@ const styles = StyleSheet.create({
 
    stockLabel: {
     fontSize: 12,
-    color: "#4A3F70",
+    color: "#2C4F4C",
     fontWeight: "600",
   },
 
@@ -948,7 +967,7 @@ const styles = StyleSheet.create({
 
   stockBarBg: {
     height: 6,
-    backgroundColor: "#EDF2F7",
+    backgroundColor: "#D0EEEC",
     borderRadius: 3,
     overflow: "hidden",
     marginBottom: 8,
@@ -997,36 +1016,36 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 28,
-    backgroundColor: "#F0ECFF",
+    backgroundColor: "#E6F5F4",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#C8B8FF",
+    borderColor: "#9FD6D1",
     marginBottom: 4,
   },
 
   emptyTitle: {
     fontSize: 20,
     fontWeight: "800",
-    color: "#1A1235",
+    color: "#0A1F1E",
   },
 
   emptyText: {
     fontSize: 14,
-    color: "#9488B8",
+    color: "#6A9E99",
     textAlign: "center",
     lineHeight: 20,
   },
 
   emptyBtn: {
     marginTop: 8,
-    backgroundColor: "#553FB5",
+    backgroundColor: "#0D7A6F",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#553FB5",
+    shadowColor: "#0D7A6F",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1041,7 +1060,7 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(26, 18, 53, 0.55)",
+    backgroundColor: "rgba(10,31,30,0.55)",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 32,
@@ -1052,8 +1071,8 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     overflow: "hidden",
     borderWidth: 1.5,
-    borderColor: "#C8B8FF",
-    shadowColor: "#553FB5",
+    borderColor: "#9FD6D1",
+    shadowColor: "#0D7A6F",
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.25,
     shadowRadius: 24,
@@ -1087,28 +1106,28 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#1A1235",
+    color: "#0A1F1E",
   },
   modalMedName: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#553FB5",
+    color: "#0D7A6F",
   },
   modalStockRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#F7F5FF",
+    backgroundColor: "#F0FAF9",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#C8B8FF",
+    borderColor: "#9FD6D1",
     marginTop: 4,
   },
   modalStockText: {
     fontSize: 13,
-    color: "#4A3F70",
+    color: "#2C4F4C",
     fontWeight: "500",
   },
   modalStockHighlight: {
@@ -1117,7 +1136,7 @@ const styles = StyleSheet.create({
   },
   modalHint: {
     fontSize: 13,
-    color: "#9488B8",
+    color: "#6A9E99",
     textAlign: "center",
     lineHeight: 18,
     marginTop: 4,
@@ -1125,11 +1144,11 @@ const styles = StyleSheet.create({
   modalBtn: {
     marginHorizontal: 24,
     marginBottom: 24,
-    backgroundColor: "#553FB5",
+    backgroundColor: "#0D7A6F",
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: "center",
-    shadowColor: "#553FB5",
+    shadowColor: "#0D7A6F",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.3,
     shadowRadius: 12,
@@ -1138,17 +1157,17 @@ const styles = StyleSheet.create({
   medDosage: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#553FB5",
+    color: "#0D7A6F",
     marginBottom: 4,
   },
   dosageHistoryWrap: {
     width: "100%",
-    backgroundColor: "#F7F5FF",
+    backgroundColor: "#F0FAF9",
     borderRadius: 12,
     padding: 12,
     gap: 10,
     borderWidth: 1,
-    borderColor: "#C8B8FF",
+    borderColor: "#9FD6D1",
     marginBottom: 4,
   },
   dosageHistoryRow: {
@@ -1160,30 +1179,30 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#553FB5",
+    backgroundColor: "#0D7A6F",
     marginTop: 4,
     flexShrink: 0,
   },
   dosageHistoryDose: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#1A1235",
+    color: "#0A1F1E",
   },
   dosageHistoryMeta: {
     fontSize: 11,
-    color: "#9488B8",
+    color: "#6A9E99",
     marginTop: 1,
   },
   dosageInput: {
     width: "100%",
     borderWidth: 1.5,
-    borderColor: "#C8B8FF",
+    borderColor: "#9FD6D1",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 11,
     fontSize: 14,
-    color: "#1A1235",
-    backgroundColor: "#F7F5FF",
+    color: "#0A1F1E",
+    backgroundColor: "#F0FAF9",
   },
   modalBtnText: {
     fontSize: 15,

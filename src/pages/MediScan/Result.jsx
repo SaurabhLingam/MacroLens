@@ -21,13 +21,13 @@ const { width } = Dimensions.get("window");
 
 // ─── Design tokens (purple system) ───────────────────────────────────────────
 const P = {
-  primary:     "#553FB5",
-  primaryDark: "#3D2D8F",
-  primaryMid:  "#6B52C8",
-  primarySoft: "#8B72E0",
-  ghostLight:  "#F0ECFF",
-  ghostMid:    "#DCECFF",
-  ghostBorder: "#C8B8FF",
+  primary:     "#0D7A6F",
+  primaryDark: "#085C53",
+  primaryMid:  "#0F9185",
+  primarySoft: "#2BADA0",
+  ghostLight:  "#E6F5F4",
+  ghostMid:    "#D0EEEC",
+  ghostBorder: "#9FD6D1",
   teal:        "#22C5AC",   // kept for scan-line visibility
   tealGlow:    "#6EFCE8",
   amber:       "#F59E0B",
@@ -36,13 +36,12 @@ const P = {
   blue:        "#4FC3F7",
   lavender:    "#A78BFA",
   gold:        "#FFD166",
-  surface:     "#F7F5FF",
+  surface:     "#F0FAF9",
   white:       "#FFFFFF",
-  text:        "#1A1235",
-  textSub:     "#4A3F70",
-  textMuted:   "#9488B8",
+  text:        "#0A1F1E",
+  textSub:     "#2C4F4C",
+  textMuted:   "#6A9E99",
 };
-
 // ─── Section metadata ─────────────────────────────────────────────────────────
 const SECTION_META = {
   Uses:             { icon: "pill",                  color: P.primary,   bg: P.ghostLight },
@@ -507,7 +506,7 @@ export default ResultScreen;
 const ls = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#0D0820",
+    backgroundColor: "#021A18",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -537,7 +536,7 @@ const ls = StyleSheet.create({
   frame: {
     width: FRAME, height: FRAME, borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: "#1A0F3C",
+    backgroundColor: "#052E2A",
     alignItems: "center", justifyContent: "center",
   },
   frameImage: { width: "100%", height: "100%" },
@@ -565,7 +564,7 @@ const ls = StyleSheet.create({
   stepsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "center" },
   stepChip: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: "rgba(139,114,224,0.14)",
+    backgroundColor: "rgba(43,173,160,0.14)",
     borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6,
     borderWidth: 1, borderColor: "rgba(200,184,255,0.22)",
   },
